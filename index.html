@@ -587,7 +587,25 @@ async function buildEditor(zip, draft, Parser, Serializer){
         nTabla++;
         ns.push(EMPTY());
         ns.push(frag(doc, Parser, `<w:p><w:pPr><w:keepNext/><w:spacing w:after="60"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:i/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">${xesc(`Tabla N°${nTabla}${t.titulo ? ': ' + t.titulo : ''}`)}</w:t></w:r></w:p>`)[0]);
-        ns.push(frag(doc, Parser, tablaXml(cols, rows))[0]);
+        ns.push(frag(doc, Parser, tablaXml(cols, rows, t.color))[0]);
+        const c = t.color;
+        if (c && c.on && (c.cols || []).length) {
+          // leyenda de colorimetría
+          const ley = leyenda(c);
+          const brd = v => `<w:${v} w:val="single" w:sz="4" w:space="0" w:color="A6A6A6"/>`;
+          const lt = `<w:tbl><w:tblPr><w:tblW w:w="7400" w:type="dxa"/><w:jc w:val="center"/><w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(brd).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="500"/><w:gridCol w:w="6900"/></w:tblGrid>` +
+            ley.map(([k, txt]) => `<w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="500" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${COLORES[k].fill}"/></w:tcPr><w:p><w:pPr><w:spacing w:before="10" w:after="10"/></w:pPr></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="6900" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:spacing w:before="10" w:after="10"/></w:pPr><w:r><w:rPr><w:sz w:val="15"/><w:szCs w:val="15"/></w:rPr><w:t xml:space="preserve">${xesc(txt)}</w:t></w:r></w:p></w:tc></w:tr>`).join('') + '</w:tbl>';
+          const ref = [!isNaN(num(c.tnom)) ? `espesor nominal ${fmtN(num(c.tnom))} mm` : '', !isNaN(num(c.tmin)) ? `espesor mínimo requerido ${fmtN(num(c.tmin))} mm` : ''].filter(Boolean).join(' y ');
+          ns.push(frag(doc, Parser, `<w:p><w:pPr><w:keepNext/><w:spacing w:before="120" w:after="40"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:i/><w:sz w:val="16"/></w:rPr><w:t xml:space="preserve">${xesc('Colorimetría' + (ref ? ' según ' + ref : '') + (c.refName ? ` (${c.refName})` : '') + ':')}</w:t></w:r></w:p>`)[0]);
+          ns.push(frag(doc, Parser, lt)[0]);
+          const rs = resumenColor(cols, rows, c);
+          if (rs.min) {
+            const pt = rows[rs.min.ri] && rows[rs.min.ri][0] ? ` (${cols[0] || 'punto'} ${rows[rs.min.ri][0]})` : '';
+            const tot = rs.cnt.v + rs.cnt.a + rs.cnt.n + rs.cnt.r;
+            ns.push(EMPTY());
+            ns.push(P(`El espesor mínimo registrado fue de ${fmtN(rs.min.e)} mm${pt}. De ${tot} mediciones: ${rs.cnt.v} en verde, ${rs.cnt.a} en amarillo, ${rs.cnt.n} en naranjo y ${rs.cnt.r} bajo el espesor mínimo requerido.`));
+          }
+        }
       });
       const fotos = (s.fotos || []).filter(f => f.img);
       if (fotos.length) {
@@ -626,15 +644,45 @@ async function buildEditor(zip, draft, Parser, Serializer){
   zip.file('[Content_Types].xml', ct);
   return { ok: true, nRer: rer.length, nImgs: nFotos };
 }
+// ---- Colorimetría de espesores ----
+const COLORES = { v: { fill: '00B050', txt: '000000', nom: 'Verde' }, a: { fill: 'FFFF00', txt: '000000', nom: 'Amarillo' }, n: { fill: 'FFC000', txt: '000000', nom: 'Naranjo' }, r: { fill: 'FF0000', txt: 'FFFFFF', nom: 'Rojo' } };
+const num = v => { const m = String(v == null ? '' : v).replace(',', '.').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : NaN; };
+const fmtN = x => (Math.round(x * 100) / 100).toString().replace('.', ',');
+function colorOf(v, c){
+  const e = num(v); if (isNaN(e) || !c) return null;
+  const tn = num(c.tnom), tm = num(c.tmin), p1 = num(c.p1), p2 = num(c.p2);
+  if (!isNaN(tm) && e < tm) return 'r';
+  if (isNaN(tn) || tn <= 0) return isNaN(tm) ? null : 'v';
+  const loss = (tn - e) / tn * 100;
+  if (loss <= p1) return 'v'; if (loss <= p2) return 'a'; return 'n';
+}
+function leyenda(c){
+  const tn = num(c.tnom), tm = num(c.tmin), p1 = num(c.p1), p2 = num(c.p2), out = [];
+  if (!isNaN(tn)) {
+    const e1 = tn * (1 - p1 / 100), e2 = tn * (1 - p2 / 100);
+    out.push(['v', `e ≥ ${fmtN(e1)} mm (pérdida ≤ ${fmtN(p1)} % del nominal)`]);
+    out.push(['a', `${fmtN(e2)} ≤ e < ${fmtN(e1)} mm (pérdida ${fmtN(p1)}–${fmtN(p2)} %)`]);
+    out.push(['n', `${!isNaN(tm) ? fmtN(tm) + ' ≤ ' : ''}e < ${fmtN(e2)} mm (pérdida > ${fmtN(p2)} %)`]);
+  } else out.push(['v', 'e ≥ espesor mínimo requerido']);
+  if (!isNaN(tm)) out.push(['r', `e < ${fmtN(tm)} mm (bajo espesor mínimo requerido)`]);
+  return out;
+}
+function resumenColor(cols, rows, c){
+  const cnt = { v: 0, a: 0, n: 0, r: 0 }; let min = null;
+  rows.forEach((r, ri) => (c.cols || []).forEach(j => { const k = colorOf(r[j], c); if (!k) return; cnt[k]++; const e = num(r[j]); if (!min || e < min.e) min = { e, ri, j }; }));
+  return { cnt, min };
+}
 // Tabla con el estilo de las tablas del informe (bordes grises, encabezado celeste)
-function tablaXml(cols, rows){
+function tablaXml(cols, rows, color){
   const n = Math.max(cols.length, ...rows.map(r => r.length), 1), W = 9864, cw = Math.floor(W / n);
   const brd = v => `<w:${v} w:val="single" w:sz="8" w:space="0" w:color="A6A6A6"/>`;
-  const cell = (t, head) => `<w:tc><w:tcPr><w:tcW w:w="${cw}" w:type="dxa"/>${head ? '<w:shd w:val="clear" w:color="auto" w:fill="DCE6F2"/>' : ''}<w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:spacing w:before="20" w:after="20"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr>${head ? '<w:b/>' : ''}<w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${xesc(t == null ? '' : t)}</w:t></w:r></w:p></w:tc>`;
+  const cell = (t, head, k) => { const C = k && COLORES[k]; const fill = head ? 'DCE6F2' : C ? C.fill : null;
+    return `<w:tc><w:tcPr><w:tcW w:w="${cw}" w:type="dxa"/>${fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''}<w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:spacing w:before="20" w:after="20"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr>${head || C ? '<w:b/>' : ''}${C ? `<w:color w:val="${C.txt}"/>` : ''}<w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${xesc(t == null ? '' : t)}</w:t></w:r></w:p></w:tc>`; };
+  const colorOn = color && color.on && (color.cols || []).length;
   const pad = r => { const o = r.slice(0, n); while (o.length < n) o.push(''); return o; };
   return `<w:tbl><w:tblPr><w:tblW w:w="${cw * n}" w:type="dxa"/><w:jc w:val="center"/><w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(brd).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="28" w:type="dxa"/><w:left w:w="57" w:type="dxa"/><w:bottom w:w="28" w:type="dxa"/><w:right w:w="57" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${'<w:gridCol w:w="' + cw + '"/>'.repeat(n)}</w:tblGrid>` +
     (cols.length ? `<w:tr><w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>${pad(cols).map(c => cell(c, true)).join('')}</w:tr>` : '') +
-    rows.map(r => `<w:tr><w:trPr><w:cantSplit/></w:trPr>${pad(r).map(c => cell(c, false)).join('')}</w:tr>`).join('') + '</w:tbl>';
+    rows.map(r => `<w:tr><w:trPr><w:cantSplit/></w:trPr>${pad(r).map((c, j) => cell(c, false, colorOn && color.cols.includes(j) ? colorOf(c, color) : null)).join('')}</w:tr>`).join('') + '</w:tbl>';
 }
 function fmtD(iso){ if (!iso) return 'dd-mm-aaaa'; const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso); return m ? `${m[3]}-${m[2]}-${m[1]}` : iso; }
 function lc(s){ return String(s).trim().split(/\s+/).map(w => /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+$/.test(w) ? w.toLowerCase() : w).join(' '); }
@@ -1320,9 +1368,10 @@ function tablaUI(i, k, t){
   const d = new Set(t.dudas || []);
   return `<div class="tblx"><div class="subh"><input type="text" data-tt="${i}:${k}" value="${esc(t.titulo || '')}" placeholder="Título de la tabla" style="padding:7px 9px;font-size:13px"></div>
     <div class="tscroll" style="margin-top:6px"><table><tr>${t.cols.map((c, j) => `<th><input type="text" data-tc="${i}:${k}:${j}" value="${esc(c)}"></th>`).join('')}</tr>
-    ${t.rows.map((r, ri) => `<tr>${r.map((v, j) => `<td class="${d.has(ri + ':' + j) ? 'dud' : ''}"><input type="text" data-tv="${i}:${k}:${ri}:${j}" value="${esc(v)}"></td>`).join('')}<td style="border:0"><button class="x" data-trdel="${i}:${k}:${ri}">✕</button></td></tr>`).join('')}</table></div>
+    ${t.rows.map((r, ri) => `<tr>${r.map((v, j) => `<td class="${d.has(ri + ':' + j) ? 'dud' : ''}"><input type="text" data-tv="${i}:${k}:${ri}:${j}" value="${esc(v)}" ${cellStyle(t, v, j)}></td>`).join('')}<td style="border:0"><button class="x" data-trdel="${i}:${k}:${ri}">✕</button></td></tr>`).join('')}</table></div>
     ${d.size ? `<div class="warn" style="font-size:12px;color:var(--warn);margin-top:6px">⚠ ${d.size} celda(s) dudosa(s) en amarillo: revísalas. Se desmarcan al editarlas.</div>` : ''}
     ${t.notas ? `<div class="muted" style="font-size:12px;margin-top:6px">Notas de la hoja: ${esc(t.notas)}</div>` : ''}
+    ${colorUI(i, k, t)}
     <div class="tacts"><button class="sm" data-trow="${i}:${k}">+ Fila</button><button class="sm" data-tcol="${i}:${k}">+ Columna</button><button class="sm" data-tcsv="${i}:${k}">CSV</button><button class="x" data-tdel="${i}:${k}">Quitar tabla</button></div></div>`;
 }
 tabEd.addEventListener('input', e => {
@@ -1378,7 +1427,9 @@ $('ocrFile').onchange = async e => {
     rows = rows.map(f => { while (f.length < n) f.push(''); return f.slice(0, n); });
     if (!rows.length) throw { code: 'vacio' };
     const dudas = (Array.isArray(r.dudas) ? r.dudas : []).map(x => `${+x.fila}:${+x.columna}`).filter(k => /^\d+:\d+$/.test(k));
-    (s.tablas = s.tablas || []).push({ titulo: String(r.titulo || ''), cols, rows, dudas, notas: String(r.notas || '') });
+    const nt = { titulo: String(r.titulo || ''), cols, rows, dudas, notas: String(r.notas || '') };
+    if (isEspTabla(nt)) nt.color = newColor(s, nt);
+    (s.tablas = s.tablas || []).push(nt);
     renderEditor(); touch();
     const st2 = $('ocrst_' + i); if (st2) st2.textContent = `Tabla digitalizada: ${rows.length} filas. Revisa las celdas en amarillo antes de generar.`;
   } catch(err){
@@ -1391,6 +1442,75 @@ $('ocrFile').onchange = async e => {
     if (c === 'not_granted' || c === 'sampling_disabled' || c === 'images_unavailable') { sampleOk = false; }
   }
 };
+
+// ---- Colorimetría (UI) ----
+const CSS_C = { v: '#00B050', a: '#FFFF00', n: '#FFC000', r: '#FF0000' };
+function cellStyle(t, v, j){
+  const c = t.color; if (!c || !c.on || !(c.cols || []).includes(j)) return '';
+  const k = colorOf(v, c); return k ? `style="background:${CSS_C[k]};color:${k === 'r' ? '#fff' : '#000'};font-weight:600"` : '';
+}
+function isEspTabla(t){ return /espesor|mm\b|ut\b|ultras/i.test((t.titulo || '') + ' ' + t.cols.join(' ')); }
+function guessCols(t){
+  const c = t.cols.map((h, j) => /espesor|mm|lectura|^e\s*\d|^[nsoe]$|norte|sur|este|oeste|^[abcd]$/i.test(h) ? j : -1).filter(j => j >= 0 && !/punto|tubo|n°|nº|panel|elev|cota|ubic/i.test(t.cols[j]));
+  if (c.length) return c;
+  return t.cols.map((h, j) => j).filter(j => j > 0 && t.rows.filter(r => !isNaN(num(r[j]))).length >= Math.max(1, t.rows.length * 0.6));
+}
+function guessRef(s){
+  const txt = ((s.comp || '') + ' ' + (s.zona || '')).toLowerCase();
+  let best = -1, sc = 0;
+  draft.espesores.forEach((r, i) => { const z = (r[0] || '').toLowerCase(); const w = z.split(/\s+/).filter(x => x.length > 3 && txt.includes(x)).length; if (w > sc) { sc = w; best = i; } });
+  return best;
+}
+function applyRef(c, i){
+  const r = draft.espesores[i]; c.ref = i;
+  if (r) { c.tnom = r[3] || ''; c.tmin = (r[4] || '').replace(/\s*\(.*\)\s*/, '').trim(); c.refName = r[0] || ''; }
+}
+function newColor(s, t){
+  const c = { on: true, cols: guessCols(t), p1: '10', p2: '20', tnom: '', tmin: '', ref: -1, refName: '' };
+  const g = guessRef(s); if (g >= 0) applyRef(c, g);
+  return c;
+}
+function colorUI(i, k, t){
+  const c = t.color;
+  if (!c || !c.on) return `<button class="sm" data-con="${i}:${k}" style="margin-top:8px;width:100%;${isEspTabla(t) ? 'border-color:var(--acc);color:var(--acc);font-weight:600' : ''}">🎨 Agregar colorimetría de espesores</button>`;
+  const rs = resumenColor(t.cols, t.rows, c);
+  return `<div class="sub" style="background:#fff;margin-top:8px"><div class="subh"><span>🎨 Colorimetría</span><button class="x" data-coff="${i}:${k}">Quitar</button></div>
+    <label>Referencia (tabla 3.3)</label><select data-cref="${i}:${k}"><option value="-1">— Ingresar a mano —</option>${draft.espesores.map((r, j) => `<option value="${j}" ${+c.ref === j ? 'selected' : ''}>${esc(r[0] || 'Fila ' + (j + 1))} · nom ${esc(r[3] || '–')} · mín ${esc(r[4] || '–')}</option>`).join('')}</select>
+    <div class="grid"><div><label>Espesor nominal (mm)</label><input type="text" inputmode="decimal" data-cf="${i}:${k}:tnom" value="${esc(c.tnom)}"></div><div><label>Espesor mín. requerido (mm)</label><input type="text" inputmode="decimal" data-cf="${i}:${k}:tmin" value="${esc(c.tmin)}"></div></div>
+    <div class="grid"><div><label>Verde hasta (% pérdida)</label><input type="text" inputmode="decimal" data-cf="${i}:${k}:p1" value="${esc(c.p1)}"></div><div><label>Amarillo hasta (% pérdida)</label><input type="text" inputmode="decimal" data-cf="${i}:${k}:p2" value="${esc(c.p2)}"></div></div>
+    <label>Columnas con espesores</label><div class="chips">${t.cols.map((h, j) => `<button class="sm" data-ccol="${i}:${k}:${j}" style="padding:5px 9px;${(c.cols || []).includes(j) ? 'background:var(--acc);color:#fff;border-color:var(--acc)' : ''}">${esc(h || 'Col ' + (j + 1))}</button>`).join('')}</div>
+    <div id="cl_${i}_${k}">${colorInfo(t)}</div></div>`;
+}
+function colorInfo(t){
+  const c = t.color, rs = resumenColor(t.cols, t.rows, c);
+  return `<div class="muted" style="font-size:12px;margin-top:8px">${leyenda(c).map(([kk, txt]) => `<div><span style="display:inline-block;width:12px;height:12px;background:${CSS_C[kk]};border:1px solid #999;vertical-align:-2px;margin-right:6px"></span>${esc(txt)}</div>`).join('')}</div>
+    <div style="font-size:13px;margin-top:6px">${rs.min ? `Mínimo: <b>${fmtN(rs.min.e)} mm</b> · ${rs.cnt.v} verde · ${rs.cnt.a} amarillo · ${rs.cnt.n} naranjo · <b style="color:var(--err)">${rs.cnt.r} bajo mínimo</b>` : 'Sin valores numéricos en las columnas elegidas.'}</div>`;
+}
+function refreshColors(i, k){
+  const t = draft.secciones[i].tablas[k]; if (!t.color || !t.color.on) return;
+  document.querySelectorAll(`[data-tv^="${i}:${k}:"]`).forEach(inp => {
+    const [, , r, j] = inp.dataset.tv.split(':').map(Number); const st = cellStyle(t, t.rows[r][j], j);
+    const m = /style="([^"]*)"/.exec(st); inp.setAttribute('style', m ? m[1] : '');
+  });
+  const box = $(`cl_${i}_${k}`); if (box) box.innerHTML = colorInfo(t);
+}
+tabEd.addEventListener('click', e => {
+  const d = e.target.dataset; const T = s => { const [i, k] = s.split(':'); return [draft.secciones[+i], draft.secciones[+i].tablas[+k]]; };
+  if (d.con) { const [s, t] = T(d.con); t.color = newColor(s, t); }
+  else if (d.coff) { const [, t] = T(d.coff); t.color.on = false; }
+  else if (d.ccol) { const [i, k, j] = d.ccol.split(':'); const c = draft.secciones[+i].tablas[+k].color; const x = +j; c.cols = c.cols.includes(x) ? c.cols.filter(y => y !== x) : c.cols.concat(x); }
+  else return;
+  renderEditor(); touch();
+});
+tabEd.addEventListener('change', e => {
+  const d = e.target.dataset;
+  if (d.cref) { const [i, k] = d.cref.split(':'); const c = draft.secciones[+i].tablas[+k].color; if (+e.target.value >= 0) applyRef(c, +e.target.value); else { c.ref = -1; c.refName = ''; } renderEditor(); touch(); }
+});
+tabEd.addEventListener('input', e => {
+  const d = e.target.dataset; if (!d.cf) return;
+  const [i, k, f] = d.cf.split(':'); const c = draft.secciones[+i].tablas[+k].color; c[f] = e.target.value; if (f === 'tnom' || f === 'tmin') { c.ref = -1; c.refName = ''; } refreshColors(+i, +k); touch();
+});
+tabEd.addEventListener('input', e => { const d = e.target.dataset; if (!d.tv) return; const [i, k] = d.tv.split(':').map(Number); refreshColors(i, k); });
 
 // ===== Importar RER desde PDF (pdf.js en el navegador; nada sale del dispositivo) =====
 const PDFJS_SRC = (window.PDFJS_BASE || 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/');
