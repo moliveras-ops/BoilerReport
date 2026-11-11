@@ -107,7 +107,10 @@ body.has-dict .micw{display:flex}
 .fold summary .muted{font-weight:400;font-size:12px;grid-column:1/3;grid-row:2;text-align:left;margin-top:2px}
 .tblx{margin-top:10px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px}
 .tblx .tscroll table{min-width:0}
-.tblx td input{min-width:70px}
+.tblx .tscroll table{width:100%;table-layout:fixed}
+.tblx td input,.tblx th input{width:100%;min-width:0;padding:8px 4px;text-align:center;font-size:14px;text-overflow:ellipsis}
+.tblx th input{font-size:13px}
+.tblx th.del,.tblx td.del{width:30px;border:0!important;background:transparent}
 .tblx td.dud input{background:#fff3cd;outline:2px solid #e0a800;outline-offset:-2px}
 .tblx th input{font-weight:600;background:#eef2f7}
 .tblx .tacts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
@@ -1369,8 +1372,8 @@ let sample = null, sampleOk = false, ocrSec = null;
 function tablaUI(i, k, t){
   const d = new Set(t.dudas || []);
   return `<div class="tblx"><div class="subh"><input type="text" data-tt="${i}:${k}" value="${esc(t.titulo || '')}" placeholder="Título de la tabla" style="padding:7px 9px;font-size:13px"></div>
-    <div class="tscroll" style="margin-top:6px"><table><tr>${t.cols.map((c, j) => `<th><input type="text" data-tc="${i}:${k}:${j}" value="${esc(c)}"></th>`).join('')}</tr>
-    ${t.rows.map((r, ri) => `<tr>${r.map((v, j) => `<td class="${d.has(ri + ':' + j) ? 'dud' : ''}"><input type="text" data-tv="${i}:${k}:${ri}:${j}" value="${esc(v)}" ${cellStyle(t, v, j)}></td>`).join('')}<td style="border:0"><button class="x" data-trdel="${i}:${k}:${ri}">✕</button></td></tr>`).join('')}</table></div>
+    <div class="tscroll" style="margin-top:6px"><table style="min-width:${t.cols.length * 104 + 30}px"><tr>${t.cols.map((c, j) => `<th><input type="text" data-tc="${i}:${k}:${j}" value="${esc(c)}"></th>`).join('')}<th class="del"></th></tr>
+    ${t.rows.map((r, ri) => `<tr>${r.map((v, j) => `<td class="${d.has(ri + ':' + j) ? 'dud' : ''}"><input type="text" data-tv="${i}:${k}:${ri}:${j}" value="${esc(v)}" ${cellStyle(t, v, j)}></td>`).join('')}<td class="del"><button class="x" style="padding:4px 2px" data-trdel="${i}:${k}:${ri}">✕</button></td></tr>`).join('')}</table></div>
     ${d.size ? `<div class="warn" style="font-size:12px;color:var(--warn);margin-top:6px">⚠ ${d.size} celda(s) dudosa(s) en amarillo: revísalas. Se desmarcan al editarlas.</div>` : ''}
     ${t.notas ? `<div class="muted" style="font-size:12px;margin-top:6px">Notas de la hoja: ${esc(t.notas)}</div>` : ''}
     ${colorUI(i, k, t)}
@@ -1544,6 +1547,7 @@ tabEd.addEventListener('input', e => {
 tabEd.addEventListener('input', e => { const d = e.target.dataset; if (!d.tv) return; const [i, k] = d.tv.split(':').map(Number); refreshColors(i, k); });
 
 document.addEventListener('toggle', e => { const d = e.target.dataset; if (d && d.rerfold != null) { const i = +d.rerfold; if (e.target.open) openRer.add(i); else openRer.delete(i); } }, true);
+
 
 // ===== Importar RER desde PDF (pdf.js en el navegador; nada sale del dispositivo) =====
 const PDFJS_SRC = (window.PDFJS_BASE || 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/');
