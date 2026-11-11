@@ -292,7 +292,7 @@ body.has-dict .micw{display:flex}
 
   <button class="pri" id="gen" disabled>Generar informe</button>
   <div class="msg" id="genMsg"></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-11 19:58</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-11 20:10</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -601,23 +601,25 @@ async function buildEditor(zip, draft, Parser, Serializer){
     // quitar apartado modelo (todo entre el título INSPECCIÓN y RECOMENDACIONES)
     let n = hInsp.nextSibling; while (n && n !== hRec) { const nx = n.nextSibling; n.parentNode.removeChild(n); n = nx; }
     const rowImg = kids(tblProto, 'w:tr')[0], rowCap = kids(tblProto, 'w:tr')[1];
-    let foto = 0, nTabla = 0, lastZona = null, lastComp = null, lastSub = null; const ns = [];
-    // títulos numerados: zona 5.x · componente 5.x.x · subcomponente 5.x.x.x · detalle 5.x.x.x.x
+    let foto = 0, nTabla = 0, prev = []; const ns = [];
+    // títulos numerados: zona 5.x · componente 5.x.x · niveles 3 a 6 (5.x.x.x … 5.x.x.x.x.x.x)
     const HL = (lvl, text) => {
       const h = cleanClone(lvl === 1 ? h1Proto : h2Proto);
       if (lvl > 2) { const il = h.getElementsByTagName('w:ilvl')[0]; if (il) il.setAttribute('w:val', String(lvl)); }
       setT(h, text); ns.push(EMPTY()); ns.push(h);
     };
+    let maxLvl = 2;
     secs.forEach(s => {
-      const zona = (s.zona || '').trim(), comp = (s.comp || '').trim(), sub = (s.sub || '').trim(), sub2 = (s.sub2 || '').trim();
-      if (zona && zona !== lastZona) { HL(1, zona); lastZona = zona; lastComp = null; lastSub = null; }
-      if (comp && comp !== lastComp) { HL(2, comp); lastComp = comp; lastSub = null; }
-      if (sub && sub !== lastSub) { HL(3, sub); lastSub = sub; }
-      if (sub2) HL(4, sub2);
+      const path = secPath(s);
+      let k = 0; while (k < path.length && k < prev.length && path[k] === prev[k]) k++;
+      for (let L = k; L < path.length; L++) if (path[L]) { HL(L + 1, path[L]); maxLvl = Math.max(maxLvl, L + 1); }
+      prev = path;
+      const zona = path[0] || '';
+      const spec = path.slice().reverse().find(Boolean) || '';
       let intro = (s.intro || '').trim();
       if (!intro) {
         const r = (draft.rer || []).find(x => String(x.num) === String(s.rer));
-        intro = `Según lo definido en el plan de inspección preventivo programado, se realizó una inspección visual a ${lc(sub2 || sub || comp || zona || 'el componente')}. Como resultado de la inspección` +
+        intro = `Según lo definido en el plan de inspección preventivo programado, se realizó una inspección visual a ${lc(spec || 'el componente')}. Como resultado de la inspección` +
           (r ? `, informado en reporte RER N°${r.num} enviado el día ${fmtD(r.fecha)}, se observaron los siguientes hallazgos relevantes:` : ', se observó lo siguiente:');
       }
       ns.push(EMPTY()); ns.push(P(intro));
@@ -678,6 +680,25 @@ async function buildEditor(zip, draft, Parser, Serializer){
 
   zip.file(docName, new Serializer().serializeToString(doc));
   zip.file(relName, rels);
+  // niveles 5 y 6 numerados como 5.1.1.1.1.1 (la plantilla trae otro formato en esos niveles)
+  const numF = zip.file('word/numbering.xml');
+  if (numF && h1Proto) {
+    const ni = numInfo(h1Proto); let nx = await numF.async('string');
+    const mNum = new RegExp('<w:num w:numId="' + ni.id + '"[^>]*>[\\s\\S]*?<w:abstractNumId w:val="(\\d+)"').exec(nx);
+    if (mNum) {
+      const re = new RegExp('(<w:abstractNum [^>]*w:abstractNumId="' + mNum[1] + '"[^>]*>)([\\s\\S]*?)(</w:abstractNum>)');
+      nx = nx.replace(re, (all, op, body, cl) => {
+        const lvl4 = /<w:lvl w:ilvl="4"[\s\S]*?<\/w:lvl>/.exec(body); if (!lvl4) return all;
+        [5, 6].forEach(n => {
+          const txt = Array.from({ length: n + 1 }, (_, j) => '%' + (j + 1)).join('.');
+          const nl = lvl4[0].replace('w:ilvl="4"', `w:ilvl="${n}"`).replace(/<w:lvlText w:val="[^"]*"\/>/, `<w:lvlText w:val="${txt}"/>`).replace(/<w:lvlRestart[^>]*\/>/, '');
+          body = body.replace(new RegExp(`<w:lvl w:ilvl="${n}"[\\s\\S]*?<\\/w:lvl>`), nl);
+        });
+        return op + body + cl;
+      });
+      zip.file('word/numbering.xml', nx);
+    }
+  }
   let ct = await zip.file('[Content_Types].xml').async('string');
   if (!/Extension="jpeg"/i.test(ct)) ct = ct.replace(/(<Types[^>]*>)/, '$1<Default Extension="jpeg" ContentType="image/jpeg"/>');
   if (!/Extension="png"/i.test(ct)) ct = ct.replace(/(<Types[^>]*>)/, '$1<Default Extension="png" ContentType="image/png"/>');
@@ -713,6 +734,10 @@ function tablaXml(cols, rows, color){
   return `<w:tbl><w:tblPr><w:tblW w:w="${cw * n}" w:type="dxa"/><w:jc w:val="center"/><w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(brd).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="28" w:type="dxa"/><w:left w:w="57" w:type="dxa"/><w:bottom w:w="28" w:type="dxa"/><w:right w:w="57" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${('<w:gridCol w:w="' + cw + '"/>').repeat(n)}</w:tblGrid>` +
     (cols.length ? `<w:tr><w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>${pad(cols).map(c => cell(c, true)).join('')}</w:tr>` : '') +
     rows.map(r => `<w:tr><w:trPr><w:cantSplit/></w:trPr>${pad(r).map((c, j) => cell(c, false, colorOn && color.cols.includes(j) ? colorOf(c, color) : null)).join('')}</w:tr>`).join('') + '</w:tbl>';
+}
+function secPath(s){
+  const niv = Array.isArray(s.niv) ? s.niv : [s.sub, s.sub2].filter(x => x != null && x !== '');
+  return [s.zona, s.comp].concat(niv).map(x => String(x || '').trim());
 }
 function fmtD(iso){ if (!iso) return 'dd-mm-aaaa'; const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso); return m ? `${m[3]}-${m[2]}-${m[1]}` : iso; }
 function lc(s){ return String(s).trim().split(/\s+/).map(w => /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+$/.test(w) ? w.toLowerCase() : w).join(' '); }
@@ -1136,7 +1161,7 @@ function renderEditor(){
     <label>Hallazgo (resumen)</label><textarea data-rer="${i}:desc" placeholder="Descripción breve">${esc(r.desc)}</textarea>
     <div style="text-align:right;margin-top:6px"><button class="x" data-del="rer:${i}">Quitar RER</button></div></details>`).join('');
   let fn = 0;
-  $('e_secs').innerHTML = draft.secciones.map((s, i) => `<div class="sub"><div class="subh"><span>Sección ${i + 1}${[s.comp, s.sub, s.sub2].filter(Boolean).length ? ' · ' + esc([s.comp, s.sub, s.sub2].filter(Boolean).join(' › ')) : ''}</span><span><button class="x" data-up="${i}" style="color:var(--acc)">↑</button><button class="x" data-del="sec:${i}">Quitar</button></span></div>
+  $('e_secs').innerHTML = draft.secciones.map((s, i) => `<div class="sub"><div class="subh"><span>Sección ${i + 1}${secName(s) ? ' · ' + esc(secName(s)) : ''}</span><span><button class="x" data-up="${i}" style="color:var(--acc)">↑</button><button class="x" data-del="sec:${i}">Quitar</button></span></div>
     <div class="grid"><div><label>Zona</label><input type="text" data-sec="${i}:zona" value="${esc(s.zona)}" placeholder="Ej: Hogar Bajo" list="zonasList"></div>
     <div><label>Componente</label><input type="text" data-sec="${i}:comp" value="${esc(s.comp)}" placeholder="Ej: Ductos de Caída de Biomasa"></div></div>
     ${nivUI(s, i)}
@@ -1174,9 +1199,9 @@ tabEd.addEventListener('change', e => {
     const i = +d.rer.split(':')[0]; const sm = $('e_rer').querySelectorAll('summary')[i]; const r = draft.rer[i];
     if (sm) { sm.children[0].textContent = 'RER N°' + (r.num || '') + (r.comp ? ' · ' + r.comp : ''); sm.children[1].textContent = fmtD(r.fecha) + (r.desc ? ' · ' + r.desc.slice(0, 60) + (r.desc.length > 60 ? '…' : '') : ' · sin hallazgo'); }
     document.querySelectorAll('[data-sec$=":rer"]').forEach(s => { const k = +s.dataset.sec.split(':')[0]; s.innerHTML = rerOpts(draft.secciones[k].rer); });
-  } else if (d.sec && /:(comp|sub|sub2)$/.test(d.sec)) {
+  } else if (d.sec && /:comp$/.test(d.sec)) {
     const i = +d.sec.split(':')[0]; const h = $('e_secs').querySelectorAll(':scope > .sub > .subh')[i];
-    const s = draft.secciones[i], nm = [s.comp, s.sub, s.sub2].filter(Boolean).join(' › ');
+    const s = draft.secciones[i], nm = secName(s);
     if (h && h.firstChild) h.firstChild.textContent = `Sección ${i + 1}${nm ? ' · ' + nm : ''}`;
   }
 });
@@ -1247,7 +1272,8 @@ $('addRer').onclick = () => {
 };
 $('addSec').onclick = () => {
   const last = draft.secciones[draft.secciones.length - 1];
-  draft.secciones.push({ zona: last ? last.zona : '', comp: last && last.sub ? last.comp : '', sub: last && last.sub2 ? last.sub : '', niveles: last ? nivOf(last) : 2, rer: '', intro: '', hallazgos: '', fotos: [] }); renderEditor(); touch();
+  const ln = last ? nivArr(last) : [];
+  draft.secciones.push({ zona: last ? last.zona : '', comp: last && ln.length ? last.comp : '', niv: ln.length ? ln.slice(0, -1).concat(['']) : [], rer: '', intro: '', hallazgos: '', fotos: [] }); renderEditor(); touch();
 };
 $('clearDraft').onclick = e => { if (!confirmInline(e.target)) return; draft = newDraft(); renderEditor(); touch(); };
 
@@ -1570,18 +1596,44 @@ tabEd.addEventListener('input', e => { const d = e.target.dataset; if (!d.tv) re
 document.addEventListener('toggle', e => { const d = e.target.dataset; if (d && d.rerfold != null) { const i = +d.rerfold; if (e.target.open) openRer.add(i); else openRer.delete(i); } }, true);
 
 
-// ---- niveles de título por sección (2 a 4) ----
-function nivOf(s){ return Math.max(s.niveles || 2, s.sub2 ? 4 : s.sub ? 3 : 2); }
-function nivUI(s, i){
-  const n = nivOf(s);
-  return (n >= 3 ? `<label>Subcomponente (nivel 3)</label><input type="text" data-sec="${i}:sub" value="${esc(s.sub || '')}" placeholder="Ej: Pared Derecha">` : '') +
-    (n >= 4 ? `<label>Detalle (nivel 4)</label><input type="text" data-sec="${i}:sub2" value="${esc(s.sub2 || '')}" placeholder="Ej: Boquilla N.º 12">` : '') +
-    `<div class="row" style="margin-top:6px">${n < 4 ? `<button class="sm" data-lvadd="${i}" style="color:var(--acc);border-color:var(--acc)">+ Agregar nivel</button>` : ''}${n > 2 ? `<button class="x" data-lvdel="${i}">− Quitar nivel</button>` : ''}</div>`;
+// ---- niveles de título por sección: zona, componente y hasta 4 subniveles (5.x.x.x.x.x) ----
+const NIV_LBL = ['Subcomponente (nivel 3)', 'Detalle (nivel 4)', 'Nivel 5', 'Nivel 6'];
+const NIV_PH = ['Ej: Pared Derecha', 'Ej: Boquilla N.º 12', 'Ej: Cara superior', 'Ej: Punto A'];
+function nivArr(s){
+  if (!Array.isArray(s.niv)) {
+    const n = Math.max(s.niveles || 2, s.sub2 ? 4 : s.sub ? 3 : 2), a = [];
+    if (n >= 3) a.push(s.sub || ''); if (n >= 4) a.push(s.sub2 || '');
+    s.niv = a; delete s.sub; delete s.sub2; delete s.niveles;
+  }
+  return s.niv;
 }
+const secName = s => [s.comp].concat(nivArr(s)).filter(Boolean).join(' › ');
+function nivUI(s, i){
+  const a = nivArr(s);
+  return a.map((v, k) => `<label>${NIV_LBL[k]}</label><input type="text" data-niv="${i}:${k}" value="${esc(v)}" placeholder="${NIV_PH[k]}">`).join('') +
+    `<div class="row" style="margin-top:6px;flex-wrap:wrap">${a.length < 4 ? `<button class="sm" data-lvadd="${i}" style="color:var(--acc);border-color:var(--acc)">+ Agregar nivel</button>` : ''}${a.length ? `<button class="x" data-lvdel="${i}">− Quitar nivel</button>` : ''}<span style="flex:1"></span>${a.length < 4 ? `<button class="sm" data-subsec="${i}" title="Crea una sección hija debajo de esta">+ Subsección</button>` : ''}</div>`;
+}
+tabEd.addEventListener('input', e => {
+  const d = e.target.dataset; if (!d.niv) return;
+  const [i, k] = d.niv.split(':').map(Number); const s = draft.secciones[i]; nivArr(s)[k] = e.target.value;
+  const h = $('e_secs').querySelectorAll(':scope > .sub > .subh')[i]; const nm = secName(s);
+  if (h && h.firstChild) h.firstChild.textContent = `Sección ${i + 1}${nm ? ' · ' + nm : ''}`;
+  touch();
+});
 tabEd.addEventListener('click', e => {
   const d = e.target.dataset;
-  if (d.lvadd != null) { const s = draft.secciones[+d.lvadd]; s.niveles = Math.min(4, nivOf(s) + 1); renderEditor(); touch(); const f = document.querySelector(`[data-sec="${d.lvadd}:${s.niveles === 3 ? 'sub' : 'sub2'}"]`); if (f) f.focus(); }
-  else if (d.lvdel != null) { const s = draft.secciones[+d.lvdel]; const n = nivOf(s); if (n === 4) s.sub2 = ''; else if (n === 3) s.sub = ''; s.niveles = n - 1; renderEditor(); touch(); }
+  if (d.lvadd != null) { const i = +d.lvadd, a = nivArr(draft.secciones[i]); if (a.length < 4) a.push(''); renderEditor(); touch(); const f = document.querySelector(`[data-niv="${i}:${a.length - 1}"]`); if (f) f.focus(); }
+  else if (d.lvdel != null) { nivArr(draft.secciones[+d.lvdel]).pop(); renderEditor(); touch(); }
+  else if (d.subsec != null) {
+    const i = +d.subsec, s = draft.secciones[i], path = [s.zona, s.comp].concat(nivArr(s));
+    // ubicar después de las subsecciones que ya cuelgan de esta
+    let j = i + 1;
+    const pre = p => secPath(draft.secciones[j]).slice(0, p.length).join('\u0001') === p.map(x => String(x || '').trim()).join('\u0001');
+    while (j < draft.secciones.length && secPath(draft.secciones[j]).length > path.length && pre(path)) j++;
+    const child = { zona: s.zona, comp: s.comp, niv: nivArr(s).slice().concat(['']), intro: '', hallazgos: '', fotos: [] };
+    draft.secciones.splice(j, 0, child); renderEditor(); touch();
+    const f = document.querySelector(`[data-niv="${j}:${child.niv.length - 1}"]`); if (f) { f.scrollIntoView({ block: 'center' }); f.focus(); }
+  }
 });
 
 // ===== Importar RER desde PDF (pdf.js en el navegador; nada sale del dispositivo) =====
