@@ -6,6 +6,7 @@
 <title>Generador de Informes Tipo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script>window.PDFJS_BASE = 'pdfjs/';</script>
 <script src="jszip.min.js"></script>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0b4f8a">
@@ -92,6 +93,11 @@ body.has-dict .micw{display:flex}
 .mic.on{background:var(--err);border-color:var(--err);color:#fff}
 .mic svg{width:14px;height:14px}
 .partial{font-size:12px;color:var(--mut);font-style:italic;flex:1;text-align:right;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.rv{border:2px solid var(--acc);border-radius:10px;padding:12px;margin-top:10px;background:var(--acc2)}
+.rv .warn{font-size:12px;color:var(--warn);margin-top:6px}
+.rv .acts2{display:flex;gap:8px;margin-top:10px}
+.rv .acts2 button{flex:1}
+.rv .pri2{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600}
 .lock{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -199,6 +205,10 @@ body.has-dict .micw{display:flex}
   </section>
   <section class="card">
     <h2>4.0 Resumen ejecutivo · Reportes RER</h2>
+    <button class="sm" id="rerPdfBtn" style="width:100%;background:var(--acc2);border-color:var(--acc);color:var(--acc);font-weight:600">Cargar RER desde PDF</button>
+    <input type="file" id="rerPdf" accept="application/pdf,.pdf" multiple hidden>
+    <p class="muted" style="margin:6px 0 0">Extrae N°, fecha, componente, evaluación y fotos. Revisa y agrega cada uno al informe.</p>
+    <div id="rerReview"></div>
     <div id="e_rer"></div>
     <button class="sm addb" id="addRer">+ Agregar RER</button>
   </section>
@@ -565,7 +575,7 @@ async function buildEditor(zip, draft, Parser, Serializer){
             kids(pI, 'w:r').forEach(r => pI.removeChild(r));
             if (pair[k]) {
               foto++;
-              frag(doc, Parser, addImage(pair[k].img, 8.3 * EMU_CM, 6.2 * EMU_CM, 'Fotografía')).forEach(r => pI.appendChild(r));
+              frag(doc, Parser, addImage(pair[k].img, 8.6 * EMU_CM, 6.45 * EMU_CM, 'Fotografía')).forEach(r => pI.appendChild(r));
               setT(pC, `Fotografía N°${foto}: ${pair[k].cap || ''}`.trim());
             } else setT(pC, '');
           });
@@ -888,6 +898,11 @@ function normalizeImg(file, maxSide){
     img.src = url;
   });
 }
+function fileTo43(file){
+  return new Promise((res, rej) => { const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); res(canvasTo43(img)); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); }; img.src = url; });
+}
 let imgTarget = null;
 document.addEventListener('click', e => { const t = e.target.dataset && e.target.dataset.addimg; if (t) { imgTarget = t; $('imgFile').multiple = !/^esq/.test(t); $('imgFile').click(); } });
 $('imgFile').onchange = async e => {
@@ -895,7 +910,7 @@ $('imgFile').onchange = async e => {
   for (const f of files) {
     try {
       const esq = /^esq|andamios/.test(imgTarget);
-      const im = await normalizeImg(f, esq ? 2000 : 1600);
+      const im = esq ? await normalizeImg(f, 2000) : await fileTo43(f);
       if (imgTarget === 'andamios') draft.andamios.push(im);
       else if (/^esq/.test(imgTarget)) draft[imgTarget] = im;
       else if (/^sec:/.test(imgTarget)) draft.secciones[+imgTarget.split(':')[1]].fotos.push({ img: im, cap: '' });
@@ -1172,6 +1187,247 @@ $('dlTpl').onclick = async () => {
   renderEditor();
   if (d) $('savedTxt').textContent = 'Borrador recuperado de este dispositivo';
 })();
+
+// ---- Importar RER desde PDF ----
+let pend = [];
+$('rerPdfBtn').onclick = () => $('rerPdf').click();
+$('rerPdf').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = ''; if (!files.length) return;
+  $('rerReview').innerHTML = '<p class="muted">Leyendo ' + files.length + ' RER…</p>';
+  for (const f of files) {
+    try {
+      const r = await parseRerPdf(f);
+      pend.push({ file: f.name, num: r.num, fecha: r.fecha, comp: r.comp, zona: guessZona(r.comp),
+        texto: evalConRer(r.evaluacion, r.num, r.fecha), hallazgos: r.hallazgos.join('\n'), resumen: resumenHallazgo(r.evaluacion),
+        fotos: r.fotos.map(x => ({ img: canvasTo43(x.canvas), cap: x.cap })), avisos: r.avisos,
+        datos: { PLANTA: r.planta, PARADA: r.parada, TAG: r.tag, EQUIPO: r.equipo } });
+    } catch(err){ console.error(err); pend.push({ file: f.name, error: (err && err.message) || 'No se pudo leer el PDF' }); }
+  }
+  renderReview();
+  $('rerReview').scrollIntoView({ block: 'start' });
+};
+function guessZona(comp){
+  const c = (comp || '').toLowerCase();
+  const prev = draft.secciones.find(s => s.comp && s.comp.toLowerCase() === c); if (prev) return prev.zona;
+  if (/sobrecalentador/.test(c)) return /primario/.test(c) ? 'Sobrecalentador Primario' : /secundario/.test(c) ? 'Sobrecalentador Secundario' : 'Sobrecalentador';
+  if (/economizador/.test(c)) return 'Economizador';
+  if (/banco/.test(c)) return 'Banco Generador';
+  if (/pared|piso|techo|hogar|boquilla|aire/.test(c)) return 'Hogar';
+  return '';
+}
+function renderReview(){
+  $('rerReview').innerHTML = pend.map((p, i) => p.error ? `<div class="rv"><div class="subh"><span>${esc(p.file)}</span><button class="x" data-rv-del="${i}">Quitar</button></div><div class="warn">${esc(p.error)}</div></div>` :
+  `<div class="rv"><div class="subh"><span>Revisar RER N°${esc(p.num)} · ${esc(p.file)}</span></div>
+    <div class="grid"><div><label>N° RER</label><input type="text" data-rv="${i}:num" value="${esc(p.num)}"></div><div><label>Fecha enviado</label><input type="date" data-rv="${i}:fecha" value="${esc(p.fecha)}"></div></div>
+    <div class="grid"><div><label>Zona (título)</label><input type="text" data-rv="${i}:zona" value="${esc(p.zona)}" list="zonasList" placeholder="Ej: Hogar"></div><div><label>Componente</label><input type="text" data-rv="${i}:comp" value="${esc(p.comp)}"></div></div>
+    <label>Texto de la sección (evaluación)</label><textarea data-rv="${i}:texto" style="min-height:120px">${esc(p.texto)}</textarea>
+    <label>Hallazgos en viñetas (uno por línea, opcional)</label><textarea data-rv="${i}:hallazgos">${esc(p.hallazgos)}</textarea>
+    <label>Resumen para el punto 4.0</label><textarea data-rv="${i}:resumen" style="min-height:60px">${esc(p.resumen)}</textarea>
+    <label>Fotografías (${p.fotos.length})</label><div class="thumbs">${p.fotos.map((f, k) => `<div class="thumb"><img src="${f.img.d}" alt=""><input type="text" data-rvcap="${i}:${k}" value="${esc(f.cap)}"><div class="tb"><span></span><button class="x" data-rv-foto="${i}:${k}">Quitar</button></div></div>`).join('')}</div>
+    ${p.avisos.map(a => `<div class="warn">⚠ ${esc(a)}</div>`).join('')}
+    <div class="acts2"><button class="sm" data-rv-del="${i}">Descartar</button><button class="sm pri2" data-rv-add="${i}">Agregar al informe</button></div></div>`).join('') +
+    (pend.filter(p => !p.error).length > 1 ? '<button class="sm pri2" id="rvAll" style="width:100%;margin-top:10px;background:var(--acc);color:#fff">Agregar todos</button>' : '');
+  addMics();
+}
+$('rerReview').addEventListener('input', e => {
+  const d = e.target.dataset;
+  if (d.rv) { const [i, k] = d.rv.split(':'); pend[+i][k] = e.target.value; }
+  else if (d.rvcap) { const [i, k] = d.rvcap.split(':'); pend[+i].fotos[+k].cap = e.target.value; }
+});
+$('rerReview').addEventListener('click', e => {
+  const d = e.target.dataset;
+  if (d.rvDel != null) { pend.splice(+d.rvDel, 1); renderReview(); }
+  else if (d.rvFoto) { const [i, k] = d.rvFoto.split(':'); pend[+i].fotos.splice(+k, 1); renderReview(); }
+  else if (d.rvAdd != null) { addPending(+d.rvAdd); pend.splice(+d.rvAdd, 1); renderReview(); renderEditor(); touch(); }
+  else if (e.target.id === 'rvAll') { pend.forEach((p, i) => { if (!p.error) addPending(i); }); pend = pend.filter(p => p.error); renderReview(); renderEditor(); touch(); }
+});
+function addPending(i){
+  const p = pend[i];
+  const num = String(p.num || '').trim();
+  const rec = { num, fecha: p.fecha, comp: p.comp, desc: p.resumen };
+  const ri = draft.rer.findIndex(r => String(r.num) === num);
+  if (ri >= 0) draft.rer[ri] = rec; else draft.rer.push(rec);
+  draft.rer.sort((a, b) => (parseInt(a.num) || 0) - (parseInt(b.num) || 0));
+  const sec = { zona: p.zona, comp: p.comp, rer: num, intro: p.texto, hallazgos: p.hallazgos, fotos: p.fotos };
+  // dejar junto a las secciones de la misma zona
+  let at = -1; draft.secciones.forEach((s, k) => { if ((s.zona || '').toLowerCase() === (p.zona || '').toLowerCase() && p.zona) at = k; });
+  if (at >= 0) draft.secciones.splice(at + 1, 0, sec); else draft.secciones.push(sec);
+  // completar Datos vacíos
+  const setIf = (id, v) => { const el = $(id); if (el && v && !el.value.trim()) { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); } };
+  setIf('f_TAG', p.datos.TAG); setIf('f_EQUIPO', p.datos.EQUIPO); setIf('x_PLANTA', p.datos.PLANTA); setIf('x_PARADA', p.datos.PARADA);
+  msg('genMsg', 'ok', `RER N°${esc(num)} agregado: ${p.fotos.length} foto(s) en la sección “${esc(p.comp)}”.`);
+}
+
+// ===== Importar RER desde PDF (pdf.js en el navegador; nada sale del dispositivo) =====
+const PDFJS_SRC = (window.PDFJS_BASE || 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/');
+let pdfjsReady = null;
+function loadScript(src){ return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar ' + src)); document.head.appendChild(s); }); }
+function loadPdfJs(){
+  if (!pdfjsReady) pdfjsReady = (async () => {
+    await loadScript(PDFJS_SRC + 'pdf.min.js');
+    await loadScript(PDFJS_SRC + 'pdf.worker.min.js'); // trabajador en el hilo principal (sin Worker externo)
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_SRC + 'pdf.worker.min.js';
+    return window.pdfjsLib;
+  })();
+  return pdfjsReady;
+}
+const MESES_ABR = { ene:1, jan:1, feb:2, mar:3, abr:4, apr:4, may:5, jun:6, jul:7, ago:8, aug:8, sep:9, set:9, oct:10, nov:11, dic:12, dec:12 };
+const SECCIONES_FIN = /^(DEFECTOS|OBSERVACIONES|COMENTARIOS|RECOMENDACIONES|PANEL DE FIRMAS|CRONOLOG|L[IÍ]NEA DE TIEMPO)\b/i;
+
+function mul(m, n){ return [m[0]*n[0]+m[2]*n[1], m[1]*n[0]+m[3]*n[1], m[0]*n[2]+m[2]*n[3], m[1]*n[2]+m[3]*n[3], m[0]*n[4]+m[2]*n[5]+m[4], m[1]*n[4]+m[3]*n[5]+m[5]]; }
+function objGet(objs, id){ return new Promise(res => { try { objs.get(id, o => res(o)); } catch(e){ res(null); } }); }
+
+async function imgToCanvas(o){
+  if (!o) return null;
+  const c = document.createElement('canvas');
+  if (o.bitmap) { c.width = o.bitmap.width; c.height = o.bitmap.height; c.getContext('2d').drawImage(o.bitmap, 0, 0); return c; }
+  if (!o.data) return null;
+  c.width = o.width; c.height = o.height;
+  const x = c.getContext('2d'), id = x.createImageData(o.width, o.height), d = id.data, s = o.data;
+  const n = o.width * o.height;
+  if (o.kind === 3 || s.length === n * 4) d.set(s);
+  else if (o.kind === 2 || s.length === n * 3) { for (let i = 0, j = 0; i < n; i++) { d[j++] = s[i*3]; d[j++] = s[i*3+1]; d[j++] = s[i*3+2]; d[j++] = 255; } }
+  else if (o.kind === 1) { const rb = (o.width + 7) >> 3; for (let y = 0; y < o.height; y++) for (let xx = 0; xx < o.width; xx++) { const bit = (s[y*rb + (xx >> 3)] >> (7 - (xx & 7))) & 1; const k = (y*o.width + xx) * 4; d[k] = d[k+1] = d[k+2] = bit ? 255 : 0; d[k+3] = 255; } }
+  else return null;
+  x.putImageData(id, 0, 0); return c;
+}
+
+// Agrupa los textos en líneas (de arriba hacia abajo)
+function toLines(items){
+  const rows = [];
+  items.forEach(it => {
+    const t = it.str; if (!t || !t.trim()) return;
+    const x = it.transform[4], y = it.transform[5], h = Math.abs(it.transform[3]) || 8;
+    let r = rows.find(r => Math.abs(r.y - y) < Math.max(2, h * 0.35));
+    if (!r) { r = { y, h, parts: [] }; rows.push(r); }
+    r.parts.push({ x, t, w: it.width || 0 });
+  });
+  rows.sort((a, b) => b.y - a.y);
+  return rows.map(r => {
+    r.parts.sort((a, b) => a.x - b.x);
+    let s = '', end = null;
+    r.parts.forEach(p => { if (end != null && p.x - end > 1.5 && !/\s$/.test(s) && !/^\s/.test(p.t)) s += (p.x - end > 40 ? '   ' : ' '); s += p.t; end = p.x + p.w; });
+    return { y: r.y, x: r.parts[0].x, h: r.h, text: s.replace(/[ \t]{2,}(?=\S)/g, m => m.length >= 3 ? '   ' : ' ').trim() };
+  });
+}
+
+async function parseRerPdf(file){
+  const pdfjs = await loadPdfJs();
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+  const pages = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({ scale: 1 });
+    const lines = toLines((await page.getTextContent()).items);
+    const ops = await page.getOperatorList();
+    const O = pdfjs.OPS; let ctm = [1,0,0,1,0,0]; const st = []; const imgs = [];
+    for (let i = 0; i < ops.fnArray.length; i++) {
+      const fn = ops.fnArray[i], a = ops.argsArray[i];
+      if (fn === O.save) st.push(ctm.slice());
+      else if (fn === O.restore) ctm = st.pop() || [1,0,0,1,0,0];
+      else if (fn === O.transform) ctm = mul(ctm, a);
+      else if (fn === O.paintImageXObject || fn === O.paintJpegXObject) {
+        const w = Math.hypot(ctm[0], ctm[1]), h = Math.hypot(ctm[2], ctm[3]);
+        imgs.push({ id: a[0], x: Math.min(ctm[4], ctm[4] + ctm[0]), y: Math.min(ctm[5], ctm[5] + ctm[3]), w, h });
+      }
+    }
+    // fotos: imágenes grandes (descarta logos y firma)
+    const fotos = [];
+    for (const im of imgs) {
+      if (im.w < vp.width * 0.3 || im.h < vp.height * 0.12) continue;
+      const o = await objGet(im.id.startsWith('g_') ? page.commonObjs : page.objs, im.id);
+      const c = await imgToCanvas(o); if (!c) continue;
+      // pie de foto: líneas justo bajo la imagen, dentro de su ancho
+      const cap = lines.filter(l => l.y < im.y && l.y > im.y - 34 && l.x >= im.x - 10 && l.x <= im.x + im.w).map(l => l.text);
+      fotos.push({ canvas: c, top: im.y + im.h, bottom: im.y, cap: cap.join(' ').trim() });
+    }
+    pages.push({ lines, fotos, height: vp.height });
+  }
+
+  // ---- campos ----
+  const all = pages.flatMap(p => p.lines.map(l => l.text));
+  const joined = all.join('\n');
+  const r = { num: '', fecha: '', comp: '', tag: '', proyecto: '', evaluacion: '', hallazgos: [], fotos: [], avisos: [] };
+  const m1 = /RER\s*#?\s*N?°?\s*(\d{1,4})/i.exec(joined); if (m1) r.num = m1[1].padStart(3, '0');
+  const mt = /TAG:\s*([^\n]+?)(?:\s{2,}|$)/m.exec(joined); if (mt) r.tag = mt[1].trim();
+  const mc = /COMPONENTE\/PARTE INSP\.?:?\s*(.+?)(?:\s{2,}AVANCE|\s+AVANCE:|$)/im.exec(joined); if (mc) r.comp = titleCase(mc[1].trim());
+  const mp = /PROYECTO:\s*(.+?)(?:\s{2,}FECHA|\s+FECHA:|$)/im.exec(joined); if (mp) r.proyecto = mp[1].trim();
+  const mpl = /\b(PGP|PDA|PDP|PGM)\s+(Planta\s+[A-Za-zÁÉÍÓÚÑáéíóúñ ]+?)\s*[-–]\s*([A-Za-záéíóú]+)\s+(\d{4})/i.exec(joined);
+  if (mpl) { r.parada = mpl[1].toUpperCase(); r.planta = titleCase(mpl[2]); }
+  const mh = all.findIndex(t => /^RER\s*#/i.test(t)); if (mh >= 0 && all[mh + 1] && !/TAG:/i.test(all[mh + 1])) r.equipo = titleCase(all[mh + 1]);
+  const fecha = (re) => { const m = re.exec(joined); if (!m) return ''; let d = +m[1], mo = isNaN(+m[2]) ? MESES_ABR[m[2].slice(0, 3).toLowerCase()] : +m[2], y = +m[3]; if (!mo) return ''; return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`; };
+  r.fecha = fecha(/Reportado[^\d\n]{0,40}(\d{1,2})[\s\/\-.]+([A-Za-zÁÉÍÓÚáéíóú]{3,}|\d{1,2})[\s\/\-.,]+(\d{4})/i) || fecha(/FECHA:\s*(\d{1,2})[\s\/\-.]+([A-Za-zÁÉÍÓÚáéíóú]{3,}|\d{1,2})[\s\/\-.,]+(\d{4})/i);
+  if (!/Reportado/i.test(joined)) r.avisos.push('Sin línea de tiempo “Reportado”: se usó la fecha del encabezado.');
+
+  // ---- evaluación: desde el título hasta la primera foto o la siguiente sección ----
+  const capSet = new Set(pages.flatMap(p => p.fotos.map(f => f.cap)).filter(Boolean));
+  const evLines = []; let on = false, done = false;
+  pages.forEach(pg => {
+    if (done) return;
+    const firstFotoTop = pg.fotos.length ? Math.max(...pg.fotos.map(f => f.top)) : -1;
+    for (const l of pg.lines) {
+      if (!on) { if (/^EVALUACI[ÓO]N\s*:?/i.test(l.text)) { on = true; const rest = l.text.replace(/^EVALUACI[ÓO]N\s*:?/i, '').trim(); if (rest) evLines.push(rest); } continue; }
+      if (SECCIONES_FIN.test(l.text) || (firstFotoTop > 0 && l.y < firstFotoTop)) { done = true; break; }
+      if (capSet.has(l.text) || /^RER\s*#/i.test(l.text) || /^TAG:/i.test(l.text) || l.y > pg.height - 90) continue;
+      evLines.push(l.text);
+    }
+  });
+  const parrafo = [];
+  evLines.forEach(t => {
+    if (/^[•●▪◦\-–]\s+/.test(t)) r.hallazgos.push(t.replace(/^[•●▪◦\-–]\s+/, '').trim());
+    else if (r.hallazgos.length) r.hallazgos[r.hallazgos.length - 1] += ' ' + t;
+    else parrafo.push(t);
+  });
+  r.evaluacion = normTxt(joinWrapped(parrafo));
+  r.hallazgos = r.hallazgos.map(h => normTxt(joinWrapped([h])));
+  if (!r.evaluacion) r.avisos.push('No se encontró el texto de EVALUACIÓN.');
+
+  // ---- fotos en orden ----
+  pages.forEach(pg => pg.fotos.sort((a, b) => b.top - a.top).forEach(f => r.fotos.push({ canvas: f.canvas, cap: cleanCap(f.cap) })));
+  if (r.fotos.length % 2) r.avisos.push(`El RER trae ${r.fotos.length} foto(s): número impar, la tabla quedará con un espacio vacío.`);
+  return r;
+}
+function joinWrapped(lines){
+  let s = '';
+  lines.forEach(t => { t = t.trim(); if (!t) return; if (!s) s = t; else if (/[-‐]$/.test(s)) s += t; else s += ' ' + t; });
+  return s.replace(/\s+([,.;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+}
+function cleanCap(c){ c = (c || '').trim().replace(/\s{2,}/g, ' '); if (c && !/[.!?]$/.test(c)) c += '.'; return c; }
+function titleCase(s){
+  const low = ['de','del','la','las','el','los','y','e','en','a','al','con','por','para'];
+  return s.toLowerCase().split(/\s+/).map((w, i) => (i && low.includes(w)) ? w : (/^n\.?º?\d/.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(' ');
+}
+// Texto de la sección en formato IQS: N° y fecha dentro de la evaluación
+function evalConRer(ev, num, fechaIso){
+  const f = fmtD(fechaIso); const ins = `informado en reporte RER N°${num} enviado el día ${f}, `;
+  if (/Como resultado de (la|esta) inspecci[oó]n,?\s*/i.test(ev)) return ev.replace(/(Como resultado de (la|esta) inspecci[oó]n),?\s*/i, `$1, ${ins}`);
+  return ev + (ev ? ' ' : '') + `(Informado en reporte RER N°${num} enviado el día ${f}).`;
+}
+function resumenHallazgo(ev){
+  const m = /se observ(?:aron|ó)\s+(?:los siguientes hallazgos relevantes:?\s*)?(.+)$/i.exec(ev);
+  let s = (m ? m[1] : ev).trim(); if (s.length > 220) s = s.slice(0, 217).replace(/\s\S*$/, '') + '…';
+  return s;
+}
+
+// correcciones tipográficas seguras
+function normTxt(s){
+  return s.replace(/N\.?\s?[º°]\s*(\d)/g, 'N.º $1')
+    .replace(/(\d+-\d+),(?=\d+-\d+)/g, '$1, ')
+    .replace(/\s+([,.;:])/g, '$1').replace(/([,;])(?=[A-Za-zÁÉÍÓÚáéíóúñ])/g, '$1 ')
+    .replace(/\s{2,}/g, ' ').trim();
+}
+// foto estándar IQS: 4:3 recortada al centro, 1600 px, JPEG 0,85
+function canvasTo43(src){
+  const w = src.width || src.naturalWidth, h = src.height || src.naturalHeight;
+  let cw = w, ch = Math.round(w * 3 / 4);
+  if (ch > h) { ch = h; cw = Math.round(h * 4 / 3); }
+  const sx = Math.round((w - cw) / 2), sy = Math.round((h - ch) / 2);
+  const s = Math.min(1, 1600 / cw);
+  const o = document.createElement('canvas'); o.width = Math.round(cw * s); o.height = Math.round(ch * s);
+  const x = o.getContext('2d'); x.imageSmoothingQuality = 'high'; x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height);
+  x.drawImage(src, sx, sy, cw, ch, 0, 0, o.width, o.height);
+  return { d: o.toDataURL('image/jpeg', 0.85), w: o.width, h: o.height };
+}
 </script>
 </body>
 </html>
