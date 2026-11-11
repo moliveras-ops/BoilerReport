@@ -9,3 +9,12 @@ Web app (BoilerReport) para generar informes de inspección IQS en Word (.docx) 
 Todo se procesa en el navegador: la plantilla, los logos, los datos técnicos y los borradores se guardan solo en el dispositivo y no se envían a ningún servidor. El sitio no incluye logos ni datos técnicos de clientes; se cargan desde la app.
 
 Para instalarla en el teléfono: abrir el sitio en Chrome → menú → *Agregar a la pantalla principal*.
+
+## App Android
+
+Cada cambio compila automáticamente el APK (GitHub Actions). Descárgalo desde el teléfono en
+**Releases → BoilerReport (Android) → BoilerReport.apk** e instálalo. Las versiones nuevas se instalan encima sin perder los informes.
+
+## Sincronización celular ↔ PC
+
+Los informes se sincronizan con un repositorio **privado** propio (por ejemplo `BoilerReport-datos`) usando un token de GitHub con permiso *Contents: Read and write* sobre ese repositorio. Se configura en la app: Datos → Informe → Configurar sincronización.

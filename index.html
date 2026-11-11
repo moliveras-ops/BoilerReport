@@ -127,6 +127,26 @@ body.has-dict .micw{display:flex}
 </nav>
 <main>
 <div id="tab-datos">
+  <section class="card" id="infCard">
+    <h2>Informe</h2>
+    <div class="row"><select id="infSel"></select><button class="sm" id="infNew">+ Nuevo</button></div>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="sm" id="infExp">Exportar</button><button class="sm" id="infImp">Importar</button><span style="flex:1"></span><button class="x" id="infDel">Eliminar</button></div>
+    <input type="file" id="infFile" accept=".json,application/json" hidden>
+    <div id="syncBox" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
+      <div class="row"><button class="sm" id="syncBtn" style="background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600">☁ Sincronizar</button><span class="muted" id="syncSt" style="font-size:12px;flex:1"></span></div>
+      <details style="margin-top:6px"><summary>Configurar sincronización (celular ↔ PC)</summary>
+        <ol class="muted" style="font-size:13px;padding-left:18px">
+          <li>En GitHub crea un repositorio <b>privado</b>, por ejemplo <code>BoilerReport-datos</code>.</li>
+          <li>Crea un token en GitHub → Settings → Developer settings → <b>Fine-grained tokens</b>: acceso solo a ese repositorio, permiso <b>Contents: Read and write</b>.</li>
+          <li>Pega aquí el repositorio y el token, en cada equipo (celular y PC).</li>
+        </ol>
+        <label>Repositorio</label><input type="text" id="syncRepo" placeholder="moliveras-ops/BoilerReport-datos" autocomplete="off">
+        <label>Token</label><input type="password" id="syncTok" placeholder="github_pat_…" autocomplete="off">
+        <button class="sm" id="syncSave" style="width:100%;margin-top:8px">Guardar y sincronizar</button>
+        <p class="muted" style="font-size:12px">El token queda guardado solo en este dispositivo. Los informes se guardan en tu repositorio privado.</p>
+      </details>
+    </div>
+  </section>
   <section class="card">
     <h2><span class="n">1</span>Plantilla</h2>
     <div class="drop" id="drop">
@@ -945,10 +965,10 @@ const IDB = {
 };
 let saveT = null;
 function touch(){
-  clearTimeout(saveT);
+  clearTimeout(saveT); dirty = true;
   $('savedTxt').textContent = 'Guardando…';
   saveT = setTimeout(async () => {
-    const ok = await IDB.set('draft', draft);
+    const ok = await saveCurrent();
     $('savedTxt').textContent = ok ? 'Borrador guardado en este dispositivo' : 'No se pudo guardar el borrador en este navegador';
   }, 500);
 }
@@ -1265,17 +1285,7 @@ $('dlTpl').onclick = async () => {
   if (ok) msg('genMsg', 'ok', 'Plantilla con campos descargada.');
 };
 
-(async () => {
-  await IDB.open();
-  const d = await IDB.get('draft');
-  if (d) {
-    const vacio = !(d.ficha || []).some(v => String(v).trim()) && !(d.espesores || []).some(r => r.slice(1).some(v => String(v).trim()));
-    draft = Object.assign(newDraft(), d);
-    if (vacio) { const n = newDraft(); draft.espesores = n.espesores; draft.ficha = n.ficha; draft.equipoId = n.equipoId; }
-  }
-  renderEditor();
-  if (d) $('savedTxt').textContent = 'Borrador recuperado de este dispositivo';
-})();
+// (inicio en informes.js)
 
 // ---- Importar RER desde PDF ----
 let pend = [];
@@ -1704,6 +1714,334 @@ function canvasTo43(src){
   const x = o.getContext('2d'); x.imageSmoothingQuality = 'high'; x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height);
   x.drawImage(src, sx, sy, cw, ch, 0, 0, o.width, o.height);
   return { d: o.toDataURL('image/jpeg', 0.85), w: o.width, h: o.height };
+}
+
+// ===== Informes guardados, exportar/importar y sincronización con GitHub =====
+let curId = null, infIndex = [], dirty = false;
+async function flushSave(){ if (dirty) { clearTimeout(saveT); await saveCurrent(); } }
+const newId = () => 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+// ---- datos de la pestaña Datos ----
+function getDatos(){
+  const vals = {};
+  document.querySelectorAll('#tab-datos [data-key]').forEach(i => vals[i.dataset.key] = i.value);
+  const extras = Object.assign({}, LS.get('it_extra', {}));
+  document.querySelectorAll('#extra [data-key]').forEach(i => extras[i.dataset.key] = i.value);
+  return { vals, extras, cliente: $('cliente').value, fnPat: $('fnPat').value };
+}
+function setDatos(d){
+  d = d || {};
+  const v = d.vals || {};
+  ['OT', 'TAG', 'EQUIPO', 'PALABRA'].forEach(k => { const el = $('f_' + k); if (el) el.value = v[k] || ''; });
+  $('f_FECHA').value = v.FECHA || todayIso();
+  LS.set('it_extra', d.extras || {});
+  document.querySelectorAll('#extra [data-key]').forEach(i => i.value = (d.extras || {})[i.dataset.key] || '');
+  if (d.cliente && !clientes.includes(d.cliente)) { clientes.push(d.cliente); LS.set('it_clientes', clientes); }
+  renderClientes(d.cliente || '');
+  if (d.fnPat) $('fnPat').value = d.fnPat;
+}
+function todayIso(){ const t = new Date(); t.setMinutes(t.getMinutes() - t.getTimezoneOffset()); return t.toISOString().slice(0, 10); }
+function infName(d){
+  const v = (d && d.vals) || {}, x = (d && d.extras) || {};
+  const parts = [v.OT ? 'OT ' + v.OT + (x.CORRELATIVO ? '-' + x.CORRELATIVO : '') : '', v.EQUIPO, x.PLANTA, d && d.cliente].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Informe sin nombre';
+}
+
+// ---- guardar / abrir ----
+async function saveCurrent(){
+  dirty = false;
+  if (!curId) curId = newId();
+  const datos = getDatos();
+  const rec = { id: curId, nombre: infName(datos), updated: Date.now(), datos, draft };
+  const ok = await IDB.set('inf:' + curId, rec);
+  const i = infIndex.findIndex(x => x.id === curId);
+  const meta = { id: curId, nombre: rec.nombre, updated: rec.updated };
+  if (i >= 0) infIndex[i] = Object.assign(infIndex[i], meta); else infIndex.unshift(meta);
+  await IDB.set('index', infIndex);
+  LS.set('it_cur', curId);
+  renderInfSel();
+  scheduleAutoSync();
+  return ok;
+}
+async function openInforme(id){
+  const rec = await IDB.get('inf:' + id); if (!rec) return;
+  curId = id; LS.set('it_cur', id);
+  draft = Object.assign(newDraft(), rec.draft || {});
+  setDatos(rec.datos);
+  renderEditor(); renderInfSel();
+  $('savedTxt').textContent = 'Informe abierto: ' + rec.nombre;
+}
+function renderInfSel(){
+  const s = $('infSel'); if (!s) return;
+  infIndex.sort((a, b) => b.updated - a.updated);
+  s.innerHTML = infIndex.map(x => `<option value="${esc(x.id)}" ${x.id === curId ? 'selected' : ''}>${esc(x.nombre)} · ${new Date(x.updated).toLocaleDateString('es-CL')}</option>`).join('') || '<option>Informe nuevo</option>';
+}
+async function initInformes(){
+  await IDB.open();
+  infIndex = (await IDB.get('index')) || [];
+  // migrar el borrador único de versiones anteriores
+  if (!infIndex.length) {
+    const old = await IDB.get('draft');
+    if (old) { draft = Object.assign(newDraft(), old); curId = newId(); await saveCurrent(); }
+  }
+  const want = LS.get('it_cur', null);
+  const id = (want && infIndex.find(x => x.id === want)) ? want : (infIndex[0] && infIndex[0].id);
+  if (id) await openInforme(id); else { curId = newId(); renderEditor(); renderInfSel(); }
+  syncInit();
+}
+$('infSel').onchange = async e => { await flushSave(); await openInforme(e.target.value); };
+$('infNew').onclick = async () => {
+  await flushSave();
+  curId = newId(); draft = newDraft();
+  setDatos({ vals: { FECHA: todayIso() }, extras: {}, cliente: $('cliente').value, fnPat: $('fnPat').value });
+  renderEditor(); await saveCurrent();
+  msg('genMsg', 'ok', 'Informe nuevo creado. El anterior quedó guardado en la lista.');
+};
+$('infDel').onclick = async e => {
+  if (!confirmInline(e.target)) return;
+  await IDB.set('inf:' + curId, null);
+  infIndex = infIndex.filter(x => x.id !== curId); await IDB.set('index', infIndex);
+  if (infIndex.length) await openInforme(infIndex[0].id);
+  else { curId = newId(); draft = newDraft(); setDatos({ vals: { FECHA: todayIso() } }); renderEditor(); renderInfSel(); }
+  msg('genMsg', 'ok', 'Informe eliminado de este dispositivo.' + (syncCfg() ? ' La copia en la nube se mantiene.' : ''));
+};
+document.getElementById('tab-datos').addEventListener('input', e => {
+  if (e.target.closest('#infCard')) return;
+  if (e.target.closest('#extra')) { const x = LS.get('it_extra', {}); x[e.target.dataset.key] = e.target.value; LS.set('it_extra', x); }
+  touch();
+});
+document.getElementById('tab-datos').addEventListener('change', e => { if (e.target.id === 'cliente' || e.target.id === 'f_FECHA') touch(); });
+
+// ---- exportar / importar (archivo .json con fotos incluidas) ----
+$('infExp').onclick = async () => {
+  await flushSave(); if (!infIndex.find(x => x.id === curId)) await saveCurrent();
+  const rec = await IDB.get('inf:' + curId);
+  const fn = 'BoilerReport_' + rec.nombre.replace(/[^\wáéíóúñÁÉÍÓÚÑ\- ]+/g, '').trim().replace(/\s+/g, '_') + '.json';
+  if (await save(fn, JSON.stringify({ app: 'BoilerReport', v: 1, informe: rec }))) msg('genMsg', 'ok', 'Informe exportado: ' + esc(fn) + '. Ábrelo en el otro equipo con “Importar”.');
+};
+$('infImp').onclick = () => $('infFile').click();
+$('infFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text()); const rec = j.informe || j;
+    if (!rec || !rec.draft) throw new Error('formato');
+    await flushSave();
+    rec.id = rec.id || newId(); rec.updated = Date.now();
+    await IDB.set('inf:' + rec.id, rec);
+    infIndex = infIndex.filter(x => x.id !== rec.id); infIndex.unshift({ id: rec.id, nombre: rec.nombre, updated: rec.updated });
+    await IDB.set('index', infIndex);
+    await openInforme(rec.id);
+    msg('genMsg', 'ok', 'Informe importado: ' + esc(rec.nombre));
+  } catch(err){ msg('genMsg', 'err', 'El archivo no es un informe de BoilerReport.'); }
+};
+
+// ===== Sincronización con un repositorio privado de GitHub =====
+const SYNC_OK = !(window.claude && window.claude.use) && typeof fetch === 'function';
+const syncCfg = () => { const c = LS.get('it_sync', null); return c && c.repo && c.token ? c : null; };
+let syncing = false, autoT = null;
+function syncInit(){
+  if (!SYNC_OK) { $('syncBox').innerHTML = '<p class="muted" style="margin:8px 0 0">☁ La sincronización entre celular y PC funciona en la app Android y en la web de GitHub. Aquí puedes usar Exportar/Importar.</p>'; return; }
+  const c = LS.get('it_sync', {}) || {};
+  $('syncRepo').value = c.repo || ''; $('syncTok').value = c.token ? '••••••••' : '';
+  syncStatus(syncCfg() ? (LS.get('it_lastsync', 0) ? 'Última sincronización: ' + new Date(LS.get('it_lastsync', 0)).toLocaleString('es-CL') : 'Configurada, aún sin sincronizar') : 'Sin configurar');
+  if (syncCfg()) setTimeout(() => runSync(true), 1500);
+  window.addEventListener('online', () => runSync(true));
+}
+function syncStatus(t, cls){ const s = $('syncSt'); if (s) { s.textContent = t; s.style.color = cls === 'err' ? 'var(--err)' : cls === 'ok' ? 'var(--ok)' : 'var(--mut)'; } }
+function scheduleAutoSync(){ if (!SYNC_OK || !syncCfg()) return; clearTimeout(autoT); autoT = setTimeout(() => runSync(true), 60000); }
+$('syncSave') && ($('syncSave').onclick = () => {
+  const repo = $('syncRepo').value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/\/$/, '');
+  const tok = $('syncTok').value.trim(); const old = LS.get('it_sync', {}) || {};
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) { syncStatus('Escribe el repositorio como usuario/nombre', 'err'); return; }
+  LS.set('it_sync', { repo, token: /^•+$/.test(tok) ? old.token : tok });
+  $('syncTok').value = '••••••••'; syncStatus('Guardado. Sincronizando…'); runSync(false);
+});
+$('syncBtn') && ($('syncBtn').onclick = () => runSync(false));
+
+// --- API de GitHub ---
+async function gh(path, opt = {}){
+  const c = syncCfg();
+  const r = await fetch('https://api.github.com/repos/' + c.repo + path, Object.assign({}, opt, {
+    headers: Object.assign({ Authorization: 'Bearer ' + c.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, opt.body ? { 'Content-Type': 'application/json' } : {}),
+  }));
+  if (r.status === 204) return null;
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.message || ('HTTP ' + r.status)); e.status = r.status; throw e; }
+  return j;
+}
+const b64FromBytes = u => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const bytesFromB64 = b => { const s = atob(b.replace(/\n/g, '')); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+const txtToB64 = t => b64FromBytes(new TextEncoder().encode(t));
+const b64ToTxt = b => new TextDecoder().decode(bytesFromB64(b));
+async function sha(t){ const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(h)].slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join(''); }
+
+// imágenes del informe ↔ archivos separados en el repositorio
+async function packImages(obj, out){
+  if (Array.isArray(obj)) { for (const x of obj) await packImages(x, out); return; }
+  if (!obj || typeof obj !== 'object') return;
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    if (v && typeof v === 'object' && typeof v.d === 'string' && v.d.startsWith('data:image/')) {
+      const ext = v.d.startsWith('data:image/png') ? 'png' : 'jpg';
+      const name = (await sha(v.d)) + '.' + ext;
+      out[name] = v.d; obj[k] = { ref: name, w: v.w, h: v.h };
+    } else await packImages(v, out);
+  }
+}
+async function unpackImages(obj, fetchImg){
+  if (Array.isArray(obj)) { for (const x of obj) await unpackImages(x, fetchImg); return; }
+  if (!obj || typeof obj !== 'object') return;
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    if (v && typeof v === 'object' && typeof v.ref === 'string' && /\.(png|jpg)$/.test(v.ref)) obj[k] = { d: await fetchImg(v.ref), w: v.w, h: v.h };
+    else await unpackImages(v, fetchImg);
+  }
+}
+
+async function runSync(silent){
+  if (!SYNC_OK || !syncCfg() || syncing) return;
+  if (!navigator.onLine) { syncStatus('Sin conexión: se sincronizará al volver la señal'); return; }
+  syncing = true; const btn = $('syncBtn'); if (btn) btn.disabled = true;
+  syncStatus('Sincronizando…');
+  try {
+    await flushSave();
+    const res = await syncOnce();
+    LS.set('it_lastsync', Date.now());
+    syncStatus(`Sincronizado ${new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} · ↑${res.up} ↓${res.down}`, 'ok');
+    if (!silent && (res.up || res.down)) msg('genMsg', 'ok', `Sincronización lista: ${res.up} informe(s) subido(s), ${res.down} descargado(s).`);
+  } catch(err){
+    console.error(err);
+    const m = err.status === 401 ? 'Token inválido o vencido' : err.status === 404 ? 'No encuentro el repositorio (revisa el nombre y los permisos del token)' : err.status === 403 ? 'El token no tiene permiso de escritura (Contents: Read and write)' : (navigator.onLine ? 'Error al sincronizar: ' + err.message : 'Sin conexión');
+    syncStatus(m, 'err');
+  } finally { syncing = false; if (btn) btn.disabled = false; }
+}
+
+async function syncOnce(attempt = 0){
+  const repo = await gh('');
+  const branch = repo.default_branch || 'main';
+  let head = null;
+  try { head = await gh('/git/ref/heads/' + branch); }
+  catch(e){
+    if (e.status !== 404 && e.status !== 409) throw e;
+    // repositorio vacío: primer archivo
+    await gh('/contents/README.md', { method: 'PUT', body: JSON.stringify({ message: 'BoilerReport: inicio', content: txtToB64('# Datos de BoilerReport\n\nInformes sincronizados desde la app. No editar a mano.\n'), branch }) });
+    head = await gh('/git/ref/heads/' + branch);
+  }
+  const headSha = head.object.sha;
+  const commit = await gh('/git/commits/' + headSha);
+  const tree = await gh('/git/trees/' + commit.tree.sha + '?recursive=1');
+  const paths = {}; (tree.tree || []).forEach(t => { if (t.type === 'blob') paths[t.path] = t.sha; });
+  const readTxt = async p => paths[p] ? b64ToTxt((await gh('/git/blobs/' + paths[p])).content) : null;
+
+  let remoteIdx = []; try { remoteIdx = JSON.parse(await readTxt('index.json') || '[]'); } catch(e){}
+  const rmap = Object.fromEntries(remoteIdx.map(x => [x.id, x]));
+  const lmap = Object.fromEntries(infIndex.map(x => [x.id, x]));
+  const newEntries = []; let up = 0, down = 0;
+
+  // ↑ subir lo que es más nuevo en este equipo
+  for (const m of infIndex) {
+    const r = rmap[m.id];
+    if (r && r.updated >= m.updated) continue;
+    const rec = JSON.parse(JSON.stringify(await IDB.get('inf:' + m.id) || null)); if (!rec) continue;
+    const imgs = {}; await packImages(rec.draft, imgs);
+    for (const [name, dataUrl] of Object.entries(imgs)) {
+      const p = 'img/' + name; if (paths[p]) continue;
+      const b = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: dataUrl.split(',')[1], encoding: 'base64' }) });
+      newEntries.push({ path: p, mode: '100644', type: 'blob', sha: b.sha }); paths[p] = b.sha;
+    }
+    const b = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: txtToB64(JSON.stringify(rec)), encoding: 'base64' }) });
+    newEntries.push({ path: 'informes/' + m.id + '.json', mode: '100644', type: 'blob', sha: b.sha });
+    rmap[m.id] = { id: m.id, nombre: m.nombre, updated: m.updated }; up++;
+  }
+  // configuración compartida: clientes, logos y equipos guardados
+  const cfgTxt = await readTxt('config.json'); let cfgR = {}; try { cfgR = JSON.parse(cfgTxt || '{}'); } catch(e){}
+  const cfgL = { clientes: clientes, logos: LS.get('it_logos', {}), equipos: LS.get('it_equipos', []) };
+  const merged = {
+    clientes: [...new Set([...(cfgR.clientes || []), ...cfgL.clientes])].sort((a, b) => a.localeCompare(b, 'es')),
+    logos: Object.assign({}, cfgR.logos || {}, cfgL.logos),
+    equipos: Object.values(Object.fromEntries([...(cfgR.equipos || []), ...cfgL.equipos].map(e => [e.id, e]))),
+  };
+  const mergedTxt = JSON.stringify(merged);
+  if (mergedTxt !== cfgTxt) { const b = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: txtToB64(mergedTxt), encoding: 'base64' }) }); newEntries.push({ path: 'config.json', mode: '100644', type: 'blob', sha: b.sha }); }
+  clientes = merged.clientes; LS.set('it_clientes', clientes);
+  logos = Object.assign({}, DEFAULT_LOGOS, merged.logos); LS.set('it_logos', merged.logos);
+  userEq = merged.equipos; LS.set('it_equipos', userEq);
+
+  if (newEntries.length) {
+    const idxArr = Object.values(rmap).sort((a, b) => b.updated - a.updated);
+    const bi = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: txtToB64(JSON.stringify(idxArr, null, 1)), encoding: 'base64' }) });
+    newEntries.push({ path: 'index.json', mode: '100644', type: 'blob', sha: bi.sha });
+    const t = await gh('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: commit.tree.sha, tree: newEntries }) });
+    const c = await gh('/git/commits', { method: 'POST', body: JSON.stringify({ message: `Sincronización BoilerReport (${up} informe/s)`, tree: t.sha, parents: [headSha] }) });
+    try { await gh('/git/refs/heads/' + branch, { method: 'PATCH', body: JSON.stringify({ sha: c.sha }) }); }
+    catch(e){ if (e.status === 422 && attempt < 2) return syncOnce(attempt + 1); throw e; }
+  }
+  // ↓ bajar lo que es más nuevo en la nube
+  const imgCache = {};
+  const fetchImg = async name => {
+    if (imgCache[name]) return imgCache[name];
+    const local = await IDB.get('img:' + name); if (local) return (imgCache[name] = local);
+    const s = paths['img/' + name]; if (!s) return '';
+    const b = await gh('/git/blobs/' + s);
+    const d = 'data:image/' + (name.endsWith('.png') ? 'png' : 'jpeg') + ';base64,' + b.content.replace(/\n/g, '');
+    await IDB.set('img:' + name, d); return (imgCache[name] = d);
+  };
+  for (const r of Object.values(rmap)) {
+    const l = lmap[r.id];
+    if (l && l.updated >= r.updated) continue;
+    const txt = await readTxt('informes/' + r.id + '.json'); if (!txt) continue;
+    const rec = JSON.parse(txt);
+    await unpackImages(rec.draft, fetchImg);
+    await IDB.set('inf:' + r.id, rec);
+    const i = infIndex.findIndex(x => x.id === r.id);
+    const meta = { id: r.id, nombre: rec.nombre, updated: rec.updated };
+    if (i >= 0) infIndex[i] = meta; else infIndex.push(meta);
+    down++;
+    if (r.id === curId) { draft = Object.assign(newDraft(), rec.draft); setDatos(rec.datos); renderEditor(); }
+  }
+  await IDB.set('index', infIndex);
+  renderInfSel(); renderClientes(); renderEq();
+  return { up, down };
+}
+
+initInformes();
+
+// ===== Versión GitHub / Android =====
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.Android) navigator.serviceWorker.register('sw.js').catch(() => {});
+if (window.Android) {
+  // Guardar archivos en Descargas/BoilerReport
+  const _save = save;
+  save = async function(filename, data){
+    try {
+      const blob = data instanceof Blob ? data : new Blob([data]);
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      const ext = (filename.split('.').pop() || '').toLowerCase();
+      const mime = { docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', json: 'application/json', csv: 'text/csv', pdf: 'application/pdf' }[ext] || 'application/octet-stream';
+      const r = window.Android.saveFile(b64FromBytes(buf), filename, mime);
+      if (r !== 'ok') { msg('genMsg', 'err', 'No se pudo guardar el archivo en el teléfono.'); return false; }
+      return true;
+    } catch(e){ msg('genMsg', 'err', 'No se pudo guardar el archivo en el teléfono.'); return false; }
+  };
+  // Dictado con el reconocimiento de voz del teléfono (funciona sin señal si el español está descargado)
+  if (window.Android.hasDictation && window.Android.hasDictation()) {
+    const H = { p: [], f: [], s: [] }; let act = false;
+    window.__ndict = {
+      final: t => H.f.forEach(h => h({ text: t })),
+      partial: t => H.p.forEach(h => h({ text: t })),
+      state: s => { act = s === 'listening'; H.s.forEach(h => h({ state: s })); },
+      error: c => { act = false; H.s.forEach(h => h({ state: 'idle' })); if (c === 'not_granted') msg('genMsg', 'warn', 'Permiso de micrófono denegado. Actívalo en Ajustes → Apps → BoilerReport.'); }
+    };
+    const nd = {
+      start(){ window.Android.startDictation(); return Promise.resolve(); },
+      stop(){ window.Android.stopDictation(); act = false; H.s.forEach(h => h({ state: 'idle' })); return Promise.resolve(); },
+      active(){ return act; },
+      onPartial(h){ H.p.push(h); return () => {}; }, onFinal(h){ H.f.push(h); return () => {}; }, onState(h){ H.s.push(h); return () => {}; }
+    };
+    dict = nd; document.body.classList.add('has-dict');
+    nd.onState(({ state }) => setMicUI(state === 'listening' || state === 'starting'));
+    nd.onPartial(({ text }) => { const p = dictBtn && dictBtn.previousElementSibling; if (p) p.textContent = text; });
+    nd.onFinal(({ text }) => { if (dictTarget && dictTarget.isConnected) applySpoken(dictTarget, text); const p = dictBtn && dictBtn.previousElementSibling; if (p) p.textContent = ''; });
+  }
 }
 </script>
 </body>
