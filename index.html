@@ -105,6 +105,13 @@ body.has-dict .micw{display:flex}
 .fold summary{display:grid;grid-template-columns:1fr auto;color:var(--ink)}
 .fold summary::after{grid-column:2;grid-row:1}
 .fold summary .muted{font-weight:400;font-size:12px;grid-column:1/3;grid-row:2;text-align:left;margin-top:2px}
+.tblx{margin-top:10px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px}
+.tblx .tscroll table{min-width:0}
+.tblx td input{min-width:70px}
+.tblx td.dud input{background:#fff3cd;outline:2px solid #e0a800;outline-offset:-2px}
+.tblx th input{font-weight:600;background:#eef2f7}
+.tblx .tacts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ocrst{font-size:13px;color:var(--acc);margin-top:8px}
 .lock{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -234,6 +241,7 @@ body.has-dict .micw{display:flex}
   </section>
   <button class="sm" id="clearDraft" style="width:100%;margin-bottom:12px">Nuevo informe (borrar borrador)</button>
   <input type="file" id="imgFile" accept="image/*" multiple hidden>
+  <input type="file" id="ocrFile" accept="image/jpeg,image/png,image/webp" multiple hidden>
 </div>
 
 <div id="tab-campos" hidden>
@@ -554,12 +562,12 @@ async function buildEditor(zip, draft, Parser, Serializer){
     insAfter(rerProto, ns); rerProto.parentNode.removeChild(rerProto);
   }
   // 6. Inspección
-  const secs = (draft.secciones || []).filter(s => s.zona || s.comp || s.hallazgos || (s.fotos || []).length);
+  const secs = (draft.secciones || []).filter(s => s.zona || s.comp || s.hallazgos || (s.fotos || []).length || (s.tablas || []).length);
   if (secs.length) {
     // quitar apartado modelo (todo entre el título INSPECCIÓN y RECOMENDACIONES)
     let n = hInsp.nextSibling; while (n && n !== hRec) { const nx = n.nextSibling; n.parentNode.removeChild(n); n = nx; }
     const rowImg = kids(tblProto, 'w:tr')[0], rowCap = kids(tblProto, 'w:tr')[1];
-    let foto = 0, lastZona = null; const ns = [];
+    let foto = 0, nTabla = 0, lastZona = null; const ns = [];
     secs.forEach(s => {
       const zona = (s.zona || '').trim();
       if (zona && zona !== lastZona) { ns.push(EMPTY()); const h = cleanClone(h1Proto); setT(h, zona); ns.push(h); lastZona = zona; }
@@ -572,6 +580,15 @@ async function buildEditor(zip, draft, Parser, Serializer){
       }
       ns.push(EMPTY()); ns.push(P(intro));
       const hs = lines(s.hallazgos); if (hs.length) { ns.push(EMPTY()); hs.forEach(t => ns.push(B(t))); }
+      (s.tablas || []).forEach(t => {
+        const cols = (t.cols || []).map(c => String(c || ''));
+        const rows = (t.rows || []).filter(r => r.some(v => String(v || '').trim()));
+        if (!cols.length && !rows.length) return;
+        nTabla++;
+        ns.push(EMPTY());
+        ns.push(frag(doc, Parser, `<w:p><w:pPr><w:keepNext/><w:spacing w:after="60"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:i/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">${xesc(`Tabla N°${nTabla}${t.titulo ? ': ' + t.titulo : ''}`)}</w:t></w:r></w:p>`)[0]);
+        ns.push(frag(doc, Parser, tablaXml(cols, rows))[0]);
+      });
       const fotos = (s.fotos || []).filter(f => f.img);
       if (fotos.length) {
         ns.push(EMPTY());
@@ -609,8 +626,18 @@ async function buildEditor(zip, draft, Parser, Serializer){
   zip.file('[Content_Types].xml', ct);
   return { ok: true, nRer: rer.length, nImgs: nFotos };
 }
+// Tabla con el estilo de las tablas del informe (bordes grises, encabezado celeste)
+function tablaXml(cols, rows){
+  const n = Math.max(cols.length, ...rows.map(r => r.length), 1), W = 9864, cw = Math.floor(W / n);
+  const brd = v => `<w:${v} w:val="single" w:sz="8" w:space="0" w:color="A6A6A6"/>`;
+  const cell = (t, head) => `<w:tc><w:tcPr><w:tcW w:w="${cw}" w:type="dxa"/>${head ? '<w:shd w:val="clear" w:color="auto" w:fill="DCE6F2"/>' : ''}<w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:spacing w:before="20" w:after="20"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr>${head ? '<w:b/>' : ''}<w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${xesc(t == null ? '' : t)}</w:t></w:r></w:p></w:tc>`;
+  const pad = r => { const o = r.slice(0, n); while (o.length < n) o.push(''); return o; };
+  return `<w:tbl><w:tblPr><w:tblW w:w="${cw * n}" w:type="dxa"/><w:jc w:val="center"/><w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(brd).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="28" w:type="dxa"/><w:left w:w="57" w:type="dxa"/><w:bottom w:w="28" w:type="dxa"/><w:right w:w="57" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${'<w:gridCol w:w="' + cw + '"/>'.repeat(n)}</w:tblGrid>` +
+    (cols.length ? `<w:tr><w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>${pad(cols).map(c => cell(c, true)).join('')}</w:tr>` : '') +
+    rows.map(r => `<w:tr><w:trPr><w:cantSplit/></w:trPr>${pad(r).map(c => cell(c, false)).join('')}</w:tr>`).join('') + '</w:tbl>';
+}
 function fmtD(iso){ if (!iso) return 'dd-mm-aaaa'; const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso); return m ? `${m[3]}-${m[2]}-${m[1]}` : iso; }
-function lc(s){ s = String(s).trim(); return /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s; }
+function lc(s){ return String(s).trim().split(/\s+/).map(w => /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+$/.test(w) ? w.toLowerCase() : w).join(' '); }
 
 async function hasEditorSlots(zip, Parser){
   const xml = (await zip.file('word/document.xml').async('string')).replace(/<[^>]+>/g, '');
@@ -1033,6 +1060,9 @@ function renderEditor(){
     <label>RER asociado</label><select data-sec="${i}:rer">${rerOpts(s.rer)}</select>
     <label>Texto de la sección (opcional)</label><textarea data-sec="${i}:intro" placeholder="Si lo dejas vacío se usa el texto tipo: “Según lo definido en el plan de inspección preventivo programado…” con el RER asociado.">${esc(s.intro)}</textarea>
     <label>Hallazgos (uno por línea)</label><textarea data-sec="${i}:hallazgos">${esc(s.hallazgos)}</textarea>
+    <label>Tablas</label>${(s.tablas || []).map((t, k) => tablaUI(i, k, t)).join('')}
+    <div class="ocrst" id="ocrst_${i}"></div>
+    <div class="row" style="margin-top:6px"><button class="sm addb" style="margin:0" data-tnew="${i}">+ Tabla manual</button>${sampleOk ? `<button class="sm addb" style="margin:0" data-ocr="${i}">Tabla desde foto (manuscrito)</button>` : ''}</div>
     <label>Fotografías</label><div class="thumbs">${s.fotos.map((f, k) => thumb(f.img, `foto:${i}:${k}`, `${i}:${k}`, f.cap, 'Fotografía N°' + (++fn))).join('')}</div>
     <button class="sm addb" data-addimg="sec:${i}">+ Agregar fotos</button></div>`).join('') +
     `<datalist id="zonasList">${[...new Set(draft.secciones.map(s => s.zona).filter(Boolean).concat(['Hogar Bajo','Hogar Alto','Sobrecalentador Primario','Sobrecalentador Secundario','Banco Generador','Economizador','Precalentador de Aire Primario']))].map(z => `<option value="${esc(z)}">`).join('')}</datalist>`;
@@ -1174,6 +1204,8 @@ function renderChk(){
   add(fichaN === FICHA_LBL.length, '3.4 Ficha técnica', `${fichaN} de ${FICHA_LBL.length} datos`, 'editor:e_ficha');
   add(draft.rer.length > 0 && draft.rer.every(r => r.comp && r.desc && r.fecha), '4.0 Reportes RER', draft.rer.length ? `${draft.rer.length} RER` + (draft.rer.some(r => !r.comp || !r.desc || !r.fecha) ? ' · hay RER incompletos' : '') : 'Sin RER', 'editor:e_rer');
   add(draft.secciones.length > 0, '5.0 Secciones de inspección', draft.secciones.length ? `${draft.secciones.length} secciones · ${fotosN} fotos` + (sinFotoCap ? ` · ${sinFotoCap} fotos sin descripción` : '') : 'Sin secciones', 'editor:e_secs');
+  const tabs = draft.secciones.flatMap(s => s.tablas || []), dud = tabs.reduce((n, t) => n + (t.dudas || []).length, 0);
+  if (tabs.length) add(dud === 0, 'Tablas digitalizadas', `${tabs.length} tabla(s)` + (dud ? ` · ${dud} celda(s) dudosa(s) por revisar` : ''), 'editor:e_secs');
   add(!!draft.recomendaciones.trim(), '6.0 Recomendaciones', '', 'editor:e_rec');
   $('chk').innerHTML = items.map((it, i) => `<li data-go="${it.go || ''}" style="cursor:pointer"><span class="s ${it.ok ? 'ok' : 'pend'}">${it.ok ? '✓' : '•'}</span><span>${esc(it.t)}${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></li>`).join('');
   const pend = items.filter(x => !x.ok).length;
@@ -1274,6 +1306,91 @@ function addPending(i){
   setIf('f_TAG', p.datos.TAG); setIf('f_EQUIPO', p.datos.EQUIPO); setIf('x_PLANTA', p.datos.PLANTA); setIf('x_PARADA', p.datos.PARADA);
   msg('genMsg', 'ok', `RER N°${esc(num)} agregado: ${p.fotos.length} foto(s) en la sección “${esc(p.comp)}”.`);
 }
+
+// ---- Tablas: manuales o digitalizadas desde una foto manuscrita (Claude) ----
+let sample = null, sampleOk = false, ocrSec = null;
+(function initSample(n){
+  if (!(window.claude && window.claude.use)) { if (n < 40) setTimeout(() => initSample(n + 1), 250); return; }
+  claude.use('sample').then(async s => {
+    if (!s) return; const lim = await s.limits().catch(() => null);
+    if (lim && lim.images) { sample = s; sampleOk = true; renderEditor(); }
+  }).catch(() => {});
+})(0);
+function tablaUI(i, k, t){
+  const d = new Set(t.dudas || []);
+  return `<div class="tblx"><div class="subh"><input type="text" data-tt="${i}:${k}" value="${esc(t.titulo || '')}" placeholder="Título de la tabla" style="padding:7px 9px;font-size:13px"></div>
+    <div class="tscroll" style="margin-top:6px"><table><tr>${t.cols.map((c, j) => `<th><input type="text" data-tc="${i}:${k}:${j}" value="${esc(c)}"></th>`).join('')}</tr>
+    ${t.rows.map((r, ri) => `<tr>${r.map((v, j) => `<td class="${d.has(ri + ':' + j) ? 'dud' : ''}"><input type="text" data-tv="${i}:${k}:${ri}:${j}" value="${esc(v)}"></td>`).join('')}<td style="border:0"><button class="x" data-trdel="${i}:${k}:${ri}">✕</button></td></tr>`).join('')}</table></div>
+    ${d.size ? `<div class="warn" style="font-size:12px;color:var(--warn);margin-top:6px">⚠ ${d.size} celda(s) dudosa(s) en amarillo: revísalas. Se desmarcan al editarlas.</div>` : ''}
+    ${t.notas ? `<div class="muted" style="font-size:12px;margin-top:6px">Notas de la hoja: ${esc(t.notas)}</div>` : ''}
+    <div class="tacts"><button class="sm" data-trow="${i}:${k}">+ Fila</button><button class="sm" data-tcol="${i}:${k}">+ Columna</button><button class="sm" data-tcsv="${i}:${k}">CSV</button><button class="x" data-tdel="${i}:${k}">Quitar tabla</button></div></div>`;
+}
+tabEd.addEventListener('input', e => {
+  const d = e.target.dataset;
+  const T = (i, k) => draft.secciones[+i].tablas[+k];
+  if (d.tt) { const [i, k] = d.tt.split(':'); T(i, k).titulo = e.target.value; }
+  else if (d.tc) { const [i, k, j] = d.tc.split(':'); T(i, k).cols[+j] = e.target.value; }
+  else if (d.tv) { const [i, k, r, j] = d.tv.split(':'); const t = T(i, k); t.rows[+r][+j] = e.target.value;
+    if (t.dudas) { const key = r + ':' + j; if (t.dudas.includes(key)) { t.dudas = t.dudas.filter(x => x !== key); e.target.parentElement.classList.remove('dud'); } } }
+  else return;
+  touch();
+});
+tabEd.addEventListener('click', async e => {
+  const d = e.target.dataset;
+  const T = s => { const [i, k] = s.split(':'); return draft.secciones[+i].tablas[+k]; };
+  if (d.tnew != null) { const s = draft.secciones[+d.tnew]; (s.tablas = s.tablas || []).push({ titulo: '', cols: ['Punto', 'Valor'], rows: [['', '']], dudas: [] }); }
+  else if (d.trow) { const t = T(d.trow); t.rows.push(t.cols.map(() => '')); }
+  else if (d.tcol) { const t = T(d.tcol); t.cols.push(''); t.rows.forEach(r => r.push('')); }
+  else if (d.trdel) { const [i, k, r] = d.trdel.split(':'); const t = draft.secciones[+i].tablas[+k]; t.rows.splice(+r, 1); t.dudas = (t.dudas || []).filter(x => +x.split(':')[0] !== +r).map(x => { const [a, b] = x.split(':'); return (+a > +r ? +a - 1 : +a) + ':' + b; }); }
+  else if (d.tdel) { if (!confirmInline(e.target)) return; const [i, k] = d.tdel.split(':'); draft.secciones[+i].tablas.splice(+k, 1); }
+  else if (d.tcsv) { const t = T(d.tcsv); const q = v => /[;"\n]/.test(v) ? '"' + String(v).replace(/"/g, '""') + '"' : v;
+    const csv = '\ufeff' + [t.cols].concat(t.rows).map(r => r.map(v => q(v || '')).join(';')).join('\r\n');
+    await save((t.titulo || 'tabla').replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '').trim().replace(/\s+/g, '_') + '.csv', csv); return; }
+  else if (d.ocr != null) { ocrSec = +d.ocr; $('ocrFile').click(); return; }
+  else return;
+  renderEditor(); touch();
+});
+const OCR_PROMPT = (ctx) => `Eres digitador técnico de informes de inspección industrial (IQS, calderas de plantas de celulosa).
+Las imágenes son una o más hojas con datos escritos a mano (por ejemplo, mediciones de espesores por ultrasonido, puntos y valores en mm).
+Transcribe la tabla exactamente como está escrita:
+- Respeta el orden de filas y columnas. Usa los encabezados de la hoja; si no tiene, propón encabezados cortos.
+- Números tal como se escribieron, con coma decimal (ej: 4,25). No calcules, no redondees, no completes ni inventes valores.
+- Celda vacía o ilegible sin lectura posible: "".
+- Si un valor es dudoso, escribe tu mejor lectura y agrégalo a "dudas" con su fila y columna (índices desde 0, sin contar el encabezado).
+- Si hay varias hojas que continúan la misma tabla, únelas en una sola.
+- Texto escrito fuera de la tabla (observaciones, fecha, equipo) va en "notas".
+Contexto de la sección del informe: ${ctx}.
+Responde SOLO con JSON de esta forma:
+{"titulo":"Mediciones de espesores pared trasera","columnas":["Punto","Espesor (mm)"],"filas":[["1","4,25"],["2","4,10"]],"dudas":[{"fila":1,"columna":1,"nota":"podría ser 4,70"}],"notas":""}`;
+$('ocrFile').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = ''; const i = ocrSec; if (!files.length || i == null || !sample) return;
+  const st = $('ocrst_' + i); const s = draft.secciones[i];
+  st.textContent = 'Leyendo la hoja manuscrita… (puede tardar hasta un minuto)';
+  try {
+    const lim = await sample.limits();
+    const imgs = files.slice(0, (lim.images && lim.images.maxCount) || 4);
+    const ctx = [s.zona, s.comp].filter(Boolean).join(' › ') || 'sin especificar';
+    const r = await sample.json(OCR_PROMPT(ctx), { images: imgs, modelTier: 'default', cache: false });
+    const cols = Array.isArray(r.columnas) ? r.columnas.map(c => String(c ?? '')) : [];
+    let rows = Array.isArray(r.filas) ? r.filas.filter(Array.isArray).map(f => f.map(v => String(v ?? ''))) : [];
+    const n = Math.max(cols.length, ...rows.map(f => f.length), 1);
+    while (cols.length < n) cols.push('');
+    rows = rows.map(f => { while (f.length < n) f.push(''); return f.slice(0, n); });
+    if (!rows.length) throw { code: 'vacio' };
+    const dudas = (Array.isArray(r.dudas) ? r.dudas : []).map(x => `${+x.fila}:${+x.columna}`).filter(k => /^\d+:\d+$/.test(k));
+    (s.tablas = s.tablas || []).push({ titulo: String(r.titulo || ''), cols, rows, dudas, notas: String(r.notas || '') });
+    renderEditor(); touch();
+    const st2 = $('ocrst_' + i); if (st2) st2.textContent = `Tabla digitalizada: ${rows.length} filas. Revisa las celdas en amarillo antes de generar.`;
+  } catch(err){
+    const c = err && err.code; const st2 = $('ocrst_' + i) || st;
+    st2.textContent = c === 'not_granted' ? 'No se dio permiso para usar Claude en esta app.' :
+      c === 'rate_limited' ? 'Demasiadas solicitudes por ahora. Intenta en unos minutos.' :
+      c === 'image_rejected' ? 'La imagen no se pudo usar. Prueba con otra foto (JPG o PNG).' :
+      c === 'vacio' || c === 'invalid_json' ? 'No se pudo reconocer una tabla en la foto. Prueba con una foto más nítida y de frente.' :
+      'No se pudo leer la hoja. Intenta de nuevo.';
+    if (c === 'not_granted' || c === 'sampling_disabled' || c === 'images_unavailable') { sampleOk = false; }
+  }
+};
 
 // ===== Importar RER desde PDF (pdf.js en el navegador; nada sale del dispositivo) =====
 const PDFJS_SRC = (window.PDFJS_BASE || 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/');
