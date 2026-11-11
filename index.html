@@ -136,8 +136,19 @@ body.has-dict .micw{display:flex}
     <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="sm" id="infExp">Exportar</button><button class="sm" id="infImp">Importar</button><span style="flex:1"></span><button class="x" id="infDel">Eliminar</button></div>
     <input type="file" id="infFile" accept=".json,application/json" hidden>
     <div id="syncBox" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
-      <div class="row"><button class="sm" id="syncBtn" style="background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600">☁ Sincronizar</button><span class="muted" id="syncSt" style="font-size:12px;flex:1"></span></div>
-      <details style="margin-top:6px"><summary>Configurar sincronización (celular ↔ PC)</summary>
+      <div class="muted" id="syncWhere" style="font-size:12px;font-weight:600"></div>
+      <div class="row" style="margin-top:4px"><button class="sm" id="syncBtn" style="background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600">☁ Sincronizar</button><span class="muted" id="syncSt" style="font-size:12px;flex:1"></span></div>
+      <details style="margin-top:8px"><summary>Guardar en Google Drive</summary>
+        <div id="drvClientBox">
+          <label>ID de cliente web de Google</label><input type="text" id="drvClient" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off">
+          <p class="muted" style="font-size:12px;margin:4px 0 0">Se crea una sola vez en Google Cloud (ver pasos en el README de la app).</p>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)"><input type="checkbox" id="drvWord" style="width:auto"> Guardar también cada Word generado en Drive</label>
+        <button class="sm" id="drvConnect" style="width:100%;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600"><svg width="18" height="16" viewBox="0 0 87.3 78"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3L27.5 53H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 1.2c-1.35.8-2.5 1.9-3.3 3.3L1.2 48.5A9.06 9.06 0 000 53h27.5z" fill="#00ac47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.5z" fill="#ea4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 53h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>Conectar con Google Drive</button>
+        <button class="x" id="drvOff" style="margin-top:6px">Desconectar Drive en este equipo</button>
+        <p class="muted" style="font-size:12px">Los informes quedan en la carpeta <b>BoilerReport</b> de tu Drive (subcarpetas informes, fotos y Word). La app solo ve los archivos que ella misma crea.</p>
+      </details>
+      <details style="margin-top:6px"><summary>Guardar en GitHub (repositorio privado)</summary>
         <ol class="muted" style="font-size:13px;padding-left:18px">
           <li>En GitHub crea un repositorio <b>privado</b>, por ejemplo <code>BoilerReport-datos</code>.</li>
           <li>Crea un token en GitHub → Settings → Developer settings → <b>Fine-grained tokens</b>: acceso solo a ese repositorio, permiso <b>Contents: Read and write</b>.</li>
@@ -145,8 +156,7 @@ body.has-dict .micw{display:flex}
         </ol>
         <label>Repositorio</label><input type="text" id="syncRepo" placeholder="moliveras-ops/BoilerReport-datos" autocomplete="off">
         <label>Token</label><input type="password" id="syncTok" placeholder="github_pat_…" autocomplete="off">
-        <button class="sm" id="syncSave" style="width:100%;margin-top:8px">Guardar y sincronizar</button>
-        <p class="muted" style="font-size:12px">El token queda guardado solo en este dispositivo. Los informes se guardan en tu repositorio privado.</p>
+        <button class="sm" id="syncSave" style="width:100%;margin-top:8px">Guardar y sincronizar con GitHub</button>
       </details>
     </div>
   </section>
@@ -909,6 +919,7 @@ $('gen').onclick = async () => {
     if (await save(fn, r.data)) {
       msg('genMsg', vacios.length ? 'warn' : 'ok',
         `Informe generado: <strong>${esc(fn)}</strong>` + edNote + (lg && !r.logoApplied ? '<br>La plantilla no tiene un logo marcado como LOGO_CLIENTE; se mantuvo el logo original.' : '') + (vacios.length ? `<br>Quedaron vacíos: ${vacios.map(k=>'<code>'+esc(k)+'</code>').join(' ')}` : ''));
+      if (typeof driveSaveWord === 'function') driveSaveWord(fn, r.data).then(ok => { if (ok) $('genMsg').insertAdjacentHTML('beforeend', '<br>☁ Copia guardada en Google Drive (BoilerReport/Word).'); });
     }
   } catch(err) { console.error(err); msg('genMsg','err','Ocurrió un error al generar el informe.'); }
   $('gen').disabled = false; $('gen').textContent = 'Generar informe';
@@ -1839,47 +1850,97 @@ $('infFile').onchange = async e => {
   } catch(err){ msg('genMsg', 'err', 'El archivo no es un informe de BoilerReport.'); }
 };
 
-// ===== Sincronización con un repositorio privado de GitHub =====
+// ===== Sincronización: Google Drive o repositorio privado de GitHub =====
 const SYNC_OK = !(window.claude && window.claude.use) && typeof fetch === 'function';
-const syncCfg = () => { const c = LS.get('it_sync', null); return c && c.repo && c.token ? c : null; };
+const provider = () => LS.get('it_provider', '');
+const ghCfg = () => { const c = LS.get('it_sync', null); return c && c.repo && c.token ? c : null; };
+const drvCfg = () => { const c = LS.get('it_drive', null); return c && (c.clientId || window.Android) && c.connected ? c : null; };
+const syncCfg = () => provider() === 'drive' ? drvCfg() : provider() === 'github' ? ghCfg() : null;
 let syncing = false, autoT = null;
+
+function syncStatus(t, cls){ const s = $('syncSt'); if (s) { s.textContent = t; s.style.color = cls === 'err' ? 'var(--err)' : cls === 'ok' ? 'var(--ok)' : 'var(--mut)'; } }
+function syncLabel(){
+  const p = provider();
+  $('syncWhere').textContent = p === 'drive' ? '☁ Google Drive' + (LS.get('it_drive', {}).email ? ' · ' + LS.get('it_drive', {}).email : '') : p === 'github' ? '☁ GitHub · ' + (LS.get('it_sync', {}).repo || '') : 'Sin nube configurada';
+}
 function syncInit(){
-  if (!SYNC_OK) { $('syncBox').innerHTML = '<p class="muted" style="margin:8px 0 0">☁ La sincronización entre celular y PC funciona en la app Android y en la web de GitHub. Aquí puedes usar Exportar/Importar.</p>'; return; }
+  if (!SYNC_OK) { $('syncBox').innerHTML = '<p class="muted" style="margin:8px 0 0">☁ La sincronización (Google Drive o GitHub) funciona en la app Android y en la web de GitHub. Aquí puedes usar Exportar/Importar.</p>'; return; }
   const c = LS.get('it_sync', {}) || {};
   $('syncRepo').value = c.repo || ''; $('syncTok').value = c.token ? '••••••••' : '';
-  syncStatus(syncCfg() ? (LS.get('it_lastsync', 0) ? 'Última sincronización: ' + new Date(LS.get('it_lastsync', 0)).toLocaleString('es-CL') : 'Configurada, aún sin sincronizar') : 'Sin configurar');
+  const d = LS.get('it_drive', {}) || {};
+  $('drvClient').value = d.clientId || '';
+  if (window.Android) $('drvClientBox').hidden = true;
+  $('drvWord').checked = d.word !== false;
+  syncLabel();
+  syncStatus(syncCfg() ? (LS.get('it_lastsync', 0) ? 'Última sincronización: ' + new Date(LS.get('it_lastsync', 0)).toLocaleString('es-CL') : 'Configurada, aún sin sincronizar') : 'Elige dónde guardar: Google Drive o GitHub');
   if (syncCfg()) setTimeout(() => runSync(true), 1500);
   window.addEventListener('online', () => runSync(true));
 }
-function syncStatus(t, cls){ const s = $('syncSt'); if (s) { s.textContent = t; s.style.color = cls === 'err' ? 'var(--err)' : cls === 'ok' ? 'var(--ok)' : 'var(--mut)'; } }
 function scheduleAutoSync(){ if (!SYNC_OK || !syncCfg()) return; clearTimeout(autoT); autoT = setTimeout(() => runSync(true), 60000); }
+
+// ---- configuración GitHub ----
 $('syncSave') && ($('syncSave').onclick = () => {
   const repo = $('syncRepo').value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/\/$/, '');
   const tok = $('syncTok').value.trim(); const old = LS.get('it_sync', {}) || {};
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) { syncStatus('Escribe el repositorio como usuario/nombre', 'err'); return; }
   LS.set('it_sync', { repo, token: /^•+$/.test(tok) ? old.token : tok });
+  LS.set('it_provider', 'github'); syncLabel();
   $('syncTok').value = '••••••••'; syncStatus('Guardado. Sincronizando…'); runSync(false);
 });
-$('syncBtn') && ($('syncBtn').onclick = () => runSync(false));
+$('syncBtn') && ($('syncBtn').onclick = () => runSync(false, true));
 
-// --- API de GitHub ---
-async function gh(path, opt = {}){
-  const c = syncCfg();
-  const r = await fetch('https://api.github.com/repos/' + c.repo + path, Object.assign({}, opt, {
-    headers: Object.assign({ Authorization: 'Bearer ' + c.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, opt.body ? { 'Content-Type': 'application/json' } : {}),
-  }));
-  if (r.status === 204) return null;
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) { const e = new Error(j.message || ('HTTP ' + r.status)); e.status = r.status; throw e; }
-  return j;
+// ---- Google Drive: inicio de sesión ----
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+let drvToken = null, drvExp = 0, gisClient = null, tokWaiters = [];
+function gisLoad(){ return window.google && google.accounts ? Promise.resolve() : loadScript('https://accounts.google.com/gsi/client'); }
+// interactive = true solo desde un toque del usuario (puede abrir la ventana de Google)
+function driveToken(interactive){
+  if (drvToken && Date.now() < drvExp - 60000) return Promise.resolve(drvToken);
+  return new Promise((res, rej) => {
+    tokWaiters.push({ res, rej });
+    if (tokWaiters.length > 1) return;
+    const done = (tok, err) => { const w = tokWaiters; tokWaiters = []; w.forEach(x => tok ? x.res(tok) : x.rej(err || new Error('auth'))); };
+    if (window.Android && window.Android.driveAuth) {
+      window.__driveTok = (tok, err) => { if (tok) { drvToken = tok; drvExp = Date.now() + 50 * 60000; } done(tok, err ? Object.assign(new Error(err), { code: err }) : null); };
+      window.Android.driveAuth(!!interactive);
+      return;
+    }
+    const cid = (LS.get('it_drive', {}) || {}).clientId;
+    if (!cid) { done(null, Object.assign(new Error('Falta el ID de cliente de Google'), { code: 'no_client' })); return; }
+    gisLoad().then(() => {
+      if (!gisClient || gisClient._cid !== cid) {
+        gisClient = google.accounts.oauth2.initTokenClient({ client_id: cid, scope: DRIVE_SCOPE, callback: () => {} });
+        gisClient._cid = cid;
+      }
+      gisClient.callback = r => { if (r && r.access_token) { drvToken = r.access_token; drvExp = Date.now() + (r.expires_in || 3600) * 1000; done(drvToken); } else done(null, Object.assign(new Error((r && r.error) || 'auth'), { code: 'auth' })); };
+      gisClient.error_callback = e => done(null, Object.assign(new Error((e && e.type) || 'popup'), { code: 'popup' }));
+      gisClient.requestAccessToken({ prompt: interactive ? '' : 'none' });
+    }).catch(e => done(null, Object.assign(new Error('No se pudo cargar el inicio de sesión de Google (¿sin señal?)'), { code: 'offline' })));
+  });
 }
+$('drvConnect') && ($('drvConnect').onclick = async () => {
+  const cid = $('drvClient').value.trim();
+  const d = LS.get('it_drive', {}) || {};
+  if (!window.Android && !/\.apps\.googleusercontent\.com$/.test(cid)) { syncStatus('Pega el ID de cliente web de Google (termina en .apps.googleusercontent.com)', 'err'); $('drvClient').focus(); return; }
+  LS.set('it_drive', Object.assign(d, { clientId: cid || d.clientId, word: $('drvWord').checked }));
+  drvToken = null; syncStatus('Abriendo Google…');
+  try {
+    await driveToken(true);
+    const me = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)', { headers: { Authorization: 'Bearer ' + drvToken } }).then(r => r.json()).catch(() => ({}));
+    LS.set('it_drive', Object.assign(LS.get('it_drive', {}), { connected: true, email: (me.user && me.user.emailAddress) || '' }));
+    LS.set('it_provider', 'drive'); syncLabel();
+    syncStatus('Conectado. Sincronizando…'); runSync(false);
+  } catch(e){ syncStatus(e.code === 'no_client' ? e.message : e.code === 'offline' ? e.message : 'No se pudo conectar con Google. Revisa el ID de cliente y que tu correo esté como usuario de prueba.', 'err'); }
+});
+$('drvWord') && ($('drvWord').onchange = () => LS.set('it_drive', Object.assign(LS.get('it_drive', {}) || {}, { word: $('drvWord').checked })));
+$('drvOff') && ($('drvOff').onclick = () => { const d = LS.get('it_drive', {}) || {}; d.connected = false; LS.set('it_drive', d); drvToken = null; if (provider() === 'drive') LS.set('it_provider', ''); syncLabel(); syncStatus('Google Drive desconectado en este equipo. Tus archivos siguen en Drive.'); });
+
+// ---- utilidades ----
 const b64FromBytes = u => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
 const bytesFromB64 = b => { const s = atob(b.replace(/\n/g, '')); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
 const txtToB64 = t => b64FromBytes(new TextEncoder().encode(t));
 const b64ToTxt = b => new TextDecoder().decode(bytesFromB64(b));
 async function sha(t){ const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(h)].slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join(''); }
-
-// imágenes del informe ↔ archivos separados en el repositorio
 async function packImages(obj, out){
   if (Array.isArray(obj)) { for (const x of obj) await packImages(x, out); return; }
   if (!obj || typeof obj !== 'object') return;
@@ -1901,33 +1962,25 @@ async function unpackImages(obj, fetchImg){
     else await unpackImages(v, fetchImg);
   }
 }
+const dataUrlFromB64 = (name, b64) => 'data:image/' + (name.endsWith('.png') ? 'png' : 'jpeg') + ';base64,' + b64.replace(/\n/g, '');
 
-async function runSync(silent){
-  if (!SYNC_OK || !syncCfg() || syncing) return;
-  if (!navigator.onLine) { syncStatus('Sin conexión: se sincronizará al volver la señal'); return; }
-  syncing = true; const btn = $('syncBtn'); if (btn) btn.disabled = true;
-  syncStatus('Sincronizando…');
-  try {
-    await flushSave();
-    const res = await syncOnce();
-    LS.set('it_lastsync', Date.now());
-    syncStatus(`Sincronizado ${new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} · ↑${res.up} ↓${res.down}`, 'ok');
-    if (!silent && (res.up || res.down)) msg('genMsg', 'ok', `Sincronización lista: ${res.up} informe(s) subido(s), ${res.down} descargado(s).`);
-  } catch(err){
-    console.error(err);
-    const m = err.status === 401 ? 'Token inválido o vencido' : err.status === 404 ? 'No encuentro el repositorio (revisa el nombre y los permisos del token)' : err.status === 403 ? 'El token no tiene permiso de escritura (Contents: Read and write)' : (navigator.onLine ? 'Error al sincronizar: ' + err.message : 'Sin conexión');
-    syncStatus(m, 'err');
-  } finally { syncing = false; if (btn) btn.disabled = false; }
+// ---- almacenamiento GitHub (un commit por sincronización) ----
+async function gh(path, opt = {}){
+  const c = ghCfg();
+  const r = await fetch('https://api.github.com/repos/' + c.repo + path, Object.assign({}, opt, {
+    headers: Object.assign({ Authorization: 'Bearer ' + c.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, opt.body ? { 'Content-Type': 'application/json' } : {}),
+  }));
+  if (r.status === 204) return null;
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.message || ('HTTP ' + r.status)); e.status = r.status; throw e; }
+  return j;
 }
-
-async function syncOnce(attempt = 0){
-  const repo = await gh('');
-  const branch = repo.default_branch || 'main';
+async function githubStore(){
+  const repo = await gh(''); const branch = repo.default_branch || 'main';
   let head = null;
   try { head = await gh('/git/ref/heads/' + branch); }
   catch(e){
     if (e.status !== 404 && e.status !== 409) throw e;
-    // repositorio vacío: primer archivo
     await gh('/contents/README.md', { method: 'PUT', body: JSON.stringify({ message: 'BoilerReport: inicio', content: txtToB64('# Datos de BoilerReport\n\nInformes sincronizados desde la app. No editar a mano.\n'), branch }) });
     head = await gh('/git/ref/heads/' + branch);
   }
@@ -1935,12 +1988,118 @@ async function syncOnce(attempt = 0){
   const commit = await gh('/git/commits/' + headSha);
   const tree = await gh('/git/trees/' + commit.tree.sha + '?recursive=1');
   const paths = {}; (tree.tree || []).forEach(t => { if (t.type === 'blob') paths[t.path] = t.sha; });
-  const readTxt = async p => paths[p] ? b64ToTxt((await gh('/git/blobs/' + paths[p])).content) : null;
+  const entries = [];
+  const blob = async (b64) => (await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: b64, encoding: 'base64' }) })).sha;
+  return {
+    async readTxt(p){ return paths[p] ? b64ToTxt((await gh('/git/blobs/' + paths[p])).content) : null; },
+    async writeTxt(p, t){ const s = await blob(txtToB64(t)); entries.push({ path: p, mode: '100644', type: 'blob', sha: s }); paths[p] = s; },
+    hasImg(n){ return !!paths['img/' + n]; },
+    async putImg(n, d){ const s = await blob(d.split(',')[1]); entries.push({ path: 'img/' + n, mode: '100644', type: 'blob', sha: s }); paths['img/' + n] = s; },
+    async getImg(n){ const s = paths['img/' + n]; return s ? dataUrlFromB64(n, (await gh('/git/blobs/' + s)).content) : ''; },
+    async finish(msg){
+      if (!entries.length) return;
+      const t = await gh('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: commit.tree.sha, tree: entries }) });
+      const c = await gh('/git/commits', { method: 'POST', body: JSON.stringify({ message: msg, tree: t.sha, parents: [headSha] }) });
+      try { await gh('/git/refs/heads/' + branch, { method: 'PATCH', body: JSON.stringify({ sha: c.sha }) }); }
+      catch(e){ if (e.status === 422) { const x = new Error('conflicto'); x.retry = true; throw x; } throw e; }
+    }
+  };
+}
 
-  let remoteIdx = []; try { remoteIdx = JSON.parse(await readTxt('index.json') || '[]'); } catch(e){}
+// ---- almacenamiento Google Drive (carpeta BoilerReport en tu Drive) ----
+async function gd(url, opt = {}){
+  const tok = await driveToken(false);
+  const r = await fetch(url.startsWith('http') ? url : 'https://www.googleapis.com/drive/v3/' + url, Object.assign({}, opt, { headers: Object.assign({ Authorization: 'Bearer ' + tok }, opt.headers || {}) }));
+  if (r.status === 401) { drvToken = null; const e = new Error('Sesión de Google vencida'); e.status = 401; throw e; }
+  if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error((j.error && j.error.message) || 'HTTP ' + r.status); e.status = r.status; throw e; }
+  return r;
+}
+const FOLDER = 'application/vnd.google-apps.folder';
+async function gdList(q){
+  let out = [], pt = '';
+  do {
+    const r = await (await gd('files?' + new URLSearchParams({ q, fields: 'nextPageToken,files(id,name)', pageSize: '1000', spaces: 'drive' }) + (pt ? '&pageToken=' + pt : ''))).json();
+    out = out.concat(r.files || []); pt = r.nextPageToken || '';
+  } while (pt);
+  return out;
+}
+async function gdFolder(name, parent){
+  const q = `name='${name}' and mimeType='${FOLDER}' and trashed=false` + (parent ? ` and '${parent}' in parents` : ` and 'root' in parents`);
+  const f = (await gdList(q))[0]; if (f) return f.id;
+  const r = await (await gd('files?fields=id', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: FOLDER, parents: parent ? [parent] : undefined }) })).json();
+  return r.id;
+}
+async function gdUpload(name, parent, data, mime, existingId){
+  if (existingId) { await gd('https://www.googleapis.com/upload/drive/v3/files/' + existingId + '?uploadType=media', { method: 'PATCH', headers: { 'Content-Type': mime }, body: data }); return existingId; }
+  const fd = new FormData();
+  fd.append('metadata', new Blob([JSON.stringify({ name, parents: [parent] })], { type: 'application/json' }));
+  fd.append('file', data instanceof Blob ? data : new Blob([data], { type: mime }));
+  const r = await (await gd('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', body: fd })).json();
+  return r.id;
+}
+async function driveFolders(){
+  const root = await gdFolder('BoilerReport');
+  const [inf, fot] = await Promise.all([gdFolder('informes', root), gdFolder('fotos', root)]);
+  return { root, inf, fot };
+}
+async function driveStore(){
+  const F = await driveFolders();
+  const ids = {};
+  (await gdList(`'${F.root}' in parents and trashed=false and mimeType!='${FOLDER}'`)).forEach(f => ids[f.name] = f.id);
+  (await gdList(`'${F.inf}' in parents and trashed=false`)).forEach(f => ids['informes/' + f.name] = f.id);
+  (await gdList(`'${F.fot}' in parents and trashed=false`)).forEach(f => ids['img/' + f.name] = f.id);
+  const parentOf = p => p.startsWith('informes/') ? F.inf : p.startsWith('img/') ? F.fot : F.root;
+  const base = p => p.split('/').pop();
+  return {
+    async readTxt(p){ return ids[p] ? (await gd('files/' + ids[p] + '?alt=media')).text() : null; },
+    async writeTxt(p, t){ ids[p] = await gdUpload(base(p), parentOf(p), t, 'application/json', ids[p]); },
+    hasImg(n){ return !!ids['img/' + n]; },
+    async putImg(n, d){ ids['img/' + n] = await gdUpload(n, F.fot, new Blob([bytesFromB64(d.split(',')[1])], { type: n.endsWith('.png') ? 'image/png' : 'image/jpeg' }), n.endsWith('.png') ? 'image/png' : 'image/jpeg'); },
+    async getImg(n){ if (!ids['img/' + n]) return ''; const b = new Uint8Array(await (await gd('files/' + ids['img/' + n] + '?alt=media')).arrayBuffer()); return dataUrlFromB64(n, b64FromBytes(b)); },
+    async finish(){}
+  };
+}
+// Copia del Word generado en Drive (carpeta BoilerReport/Word)
+async function driveSaveWord(filename, blob){
+  if (!SYNC_OK || provider() !== 'drive' || !drvCfg() || (LS.get('it_drive', {}) || {}).word === false || !navigator.onLine) return false;
+  try {
+    const F = await driveFolders(); const w = await gdFolder('Word', F.root);
+    const ex = (await gdList(`name='${filename.replace(/'/g, "\\'")}' and '${w}' in parents and trashed=false`))[0];
+    await gdUpload(filename, w, blob, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ex && ex.id);
+    return true;
+  } catch(e){ console.error(e); return false; }
+}
+
+// ---- sincronización (igual para ambos) ----
+async function runSync(silent, interactive){
+  if (!SYNC_OK || syncing) return;
+  if (!syncCfg()) { if (!silent) syncStatus('Primero conecta Google Drive o configura GitHub', 'err'); return; }
+  if (!navigator.onLine) { syncStatus('Sin conexión: se sincronizará al volver la señal'); return; }
+  syncing = true; const btn = $('syncBtn'); if (btn) btn.disabled = true;
+  syncStatus('Sincronizando…');
+  try {
+    if (provider() === 'drive' && interactive) await driveToken(true);
+    await flushSave();
+    let res;
+    try { res = await syncOnce(); } catch(e){ if (e.retry) res = await syncOnce(); else throw e; }
+    LS.set('it_lastsync', Date.now());
+    syncStatus(`Sincronizado ${new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} · ↑${res.up} ↓${res.down}`, 'ok');
+    if (!silent && (res.up || res.down)) msg('genMsg', 'ok', `Sincronización lista: ${res.up} informe(s) subido(s), ${res.down} descargado(s).`);
+  } catch(err){
+    console.error(err);
+    let m;
+    if (provider() === 'drive') m = err.code === 'popup' || err.code === 'auth' || err.status === 401 ? 'Toca “☁ Sincronizar” para volver a iniciar sesión en Google' : err.status === 403 ? 'Google rechazó el acceso (revisa la API de Drive y el usuario de prueba)' : (navigator.onLine ? 'Error al sincronizar: ' + err.message : 'Sin conexión');
+    else m = err.status === 401 ? 'Token inválido o vencido' : err.status === 404 ? 'No encuentro el repositorio (revisa el nombre y los permisos del token)' : err.status === 403 ? 'El token no tiene permiso de escritura (Contents: Read and write)' : (navigator.onLine ? 'Error al sincronizar: ' + err.message : 'Sin conexión');
+    syncStatus(m, 'err');
+  } finally { syncing = false; if (btn) btn.disabled = false; }
+}
+
+async function syncOnce(){
+  const S = provider() === 'drive' ? await driveStore() : await githubStore();
+  let remoteIdx = []; try { remoteIdx = JSON.parse(await S.readTxt('index.json') || '[]'); } catch(e){}
   const rmap = Object.fromEntries(remoteIdx.map(x => [x.id, x]));
   const lmap = Object.fromEntries(infIndex.map(x => [x.id, x]));
-  const newEntries = []; let up = 0, down = 0;
+  let up = 0, down = 0, changed = false;
 
   // ↑ subir lo que es más nuevo en este equipo
   for (const m of infIndex) {
@@ -1948,52 +2107,34 @@ async function syncOnce(attempt = 0){
     if (r && r.updated >= m.updated) continue;
     const rec = JSON.parse(JSON.stringify(await IDB.get('inf:' + m.id) || null)); if (!rec) continue;
     const imgs = {}; await packImages(rec.draft, imgs);
-    for (const [name, dataUrl] of Object.entries(imgs)) {
-      const p = 'img/' + name; if (paths[p]) continue;
-      const b = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: dataUrl.split(',')[1], encoding: 'base64' }) });
-      newEntries.push({ path: p, mode: '100644', type: 'blob', sha: b.sha }); paths[p] = b.sha;
-    }
-    const b = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: txtToB64(JSON.stringify(rec)), encoding: 'base64' }) });
-    newEntries.push({ path: 'informes/' + m.id + '.json', mode: '100644', type: 'blob', sha: b.sha });
-    rmap[m.id] = { id: m.id, nombre: m.nombre, updated: m.updated }; up++;
+    for (const [name, dataUrl] of Object.entries(imgs)) if (!S.hasImg(name)) await S.putImg(name, dataUrl);
+    await S.writeTxt('informes/' + m.id + '.json', JSON.stringify(rec));
+    rmap[m.id] = { id: m.id, nombre: m.nombre, updated: m.updated }; up++; changed = true;
   }
   // configuración compartida: clientes, logos y equipos guardados
-  const cfgTxt = await readTxt('config.json'); let cfgR = {}; try { cfgR = JSON.parse(cfgTxt || '{}'); } catch(e){}
-  const cfgL = { clientes: clientes, logos: LS.get('it_logos', {}), equipos: LS.get('it_equipos', []) };
+  const cfgTxt = await S.readTxt('config.json'); let cfgR = {}; try { cfgR = JSON.parse(cfgTxt || '{}'); } catch(e){}
   const merged = {
-    clientes: [...new Set([...(cfgR.clientes || []), ...cfgL.clientes])].sort((a, b) => a.localeCompare(b, 'es')),
-    logos: Object.assign({}, cfgR.logos || {}, cfgL.logos),
-    equipos: Object.values(Object.fromEntries([...(cfgR.equipos || []), ...cfgL.equipos].map(e => [e.id, e]))),
+    clientes: [...new Set([...(cfgR.clientes || []), ...clientes])].sort((a, b) => a.localeCompare(b, 'es')),
+    logos: Object.assign({}, cfgR.logos || {}, LS.get('it_logos', {})),
+    equipos: Object.values(Object.fromEntries([...(cfgR.equipos || []), ...LS.get('it_equipos', [])].map(e => [e.id, e]))),
   };
   const mergedTxt = JSON.stringify(merged);
-  if (mergedTxt !== cfgTxt) { const b = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: txtToB64(mergedTxt), encoding: 'base64' }) }); newEntries.push({ path: 'config.json', mode: '100644', type: 'blob', sha: b.sha }); }
+  if (mergedTxt !== cfgTxt) { await S.writeTxt('config.json', mergedTxt); changed = true; }
   clientes = merged.clientes; LS.set('it_clientes', clientes);
   logos = Object.assign({}, DEFAULT_LOGOS, merged.logos); LS.set('it_logos', merged.logos);
   userEq = merged.equipos; LS.set('it_equipos', userEq);
+  if (up) await S.writeTxt('index.json', JSON.stringify(Object.values(rmap).sort((a, b) => b.updated - a.updated), null, 1));
+  if (changed) await S.finish(`Sincronización BoilerReport (${up} informe/s)`);
 
-  if (newEntries.length) {
-    const idxArr = Object.values(rmap).sort((a, b) => b.updated - a.updated);
-    const bi = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: txtToB64(JSON.stringify(idxArr, null, 1)), encoding: 'base64' }) });
-    newEntries.push({ path: 'index.json', mode: '100644', type: 'blob', sha: bi.sha });
-    const t = await gh('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: commit.tree.sha, tree: newEntries }) });
-    const c = await gh('/git/commits', { method: 'POST', body: JSON.stringify({ message: `Sincronización BoilerReport (${up} informe/s)`, tree: t.sha, parents: [headSha] }) });
-    try { await gh('/git/refs/heads/' + branch, { method: 'PATCH', body: JSON.stringify({ sha: c.sha }) }); }
-    catch(e){ if (e.status === 422 && attempt < 2) return syncOnce(attempt + 1); throw e; }
-  }
   // ↓ bajar lo que es más nuevo en la nube
-  const imgCache = {};
   const fetchImg = async name => {
-    if (imgCache[name]) return imgCache[name];
-    const local = await IDB.get('img:' + name); if (local) return (imgCache[name] = local);
-    const s = paths['img/' + name]; if (!s) return '';
-    const b = await gh('/git/blobs/' + s);
-    const d = 'data:image/' + (name.endsWith('.png') ? 'png' : 'jpeg') + ';base64,' + b.content.replace(/\n/g, '');
-    await IDB.set('img:' + name, d); return (imgCache[name] = d);
+    const local = await IDB.get('img:' + name); if (local) return local;
+    const d = await S.getImg(name); if (d) await IDB.set('img:' + name, d); return d;
   };
   for (const r of Object.values(rmap)) {
     const l = lmap[r.id];
     if (l && l.updated >= r.updated) continue;
-    const txt = await readTxt('informes/' + r.id + '.json'); if (!txt) continue;
+    const txt = await S.readTxt('informes/' + r.id + '.json'); if (!txt) continue;
     const rec = JSON.parse(txt);
     await unpackImages(rec.draft, fetchImg);
     await IDB.set('inf:' + r.id, rec);
@@ -2004,6 +2145,8 @@ async function syncOnce(attempt = 0){
     if (r.id === curId) { draft = Object.assign(newDraft(), rec.draft); setDatos(rec.datos); renderEditor(); }
   }
   await IDB.set('index', infIndex);
+  // si este equipo solo tenía un informe en blanco, abrir el más reciente que llegó
+  if (down && !infIndex.find(x => x.id === curId) && infIndex.length) { infIndex.sort((a, b) => b.updated - a.updated); await openInforme(infIndex[0].id); }
   renderInfSel(); renderClientes(); renderEq();
   return { up, down };
 }

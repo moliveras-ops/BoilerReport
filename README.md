@@ -18,3 +18,13 @@ Cada cambio compila automáticamente el APK (GitHub Actions). Descárgalo desde 
 ## Sincronización celular ↔ PC
 
 Los informes se sincronizan con un repositorio **privado** propio (por ejemplo `BoilerReport-datos`) usando un token de GitHub con permiso *Contents: Read and write* sobre ese repositorio. Se configura en la app: Datos → Informe → Configurar sincronización.
+
+## Google Drive (opcional)
+
+Para guardar los informes en Google Drive (carpeta **BoilerReport**), una sola vez en **console.cloud.google.com**:
+
+1. Crear un proyecto (ej. *BoilerReport*) y activar **Google Drive API**.
+2. **Pantalla de consentimiento OAuth**: tipo *Externo*, en modo *Prueba*, agregar tu correo en *Usuarios de prueba*.
+3. **Credenciales → Crear ID de cliente OAuth**:
+   - *Aplicación web*: origen autorizado `https://moliveras-ops.github.io`. Copia el ID y pégalo en la app web (Datos → Informe → Guardar en Google Drive).
+   - *Android*: paquete `cl.iqs.boilerreport` y huella SHA-1 `52:3E:AF:CB:7C:6F:06:F6:8C:03:43:6D:7F:D8:F3:32:0D:B8:E4:0F` (requiere el secreto `ANDROID_KEYSTORE`). En la app Android no hay que pegar nada.

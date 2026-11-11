@@ -23,7 +23,11 @@ import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.Identity
+import com.google.android.gms.common.api.Scope
 import androidx.core.content.ContextCompat
 import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
@@ -60,6 +64,39 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
             if (ok) startListening() else js("window.__ndict && window.__ndict.error('not_granted')")
         }
+
+    // Google Drive: permiso para la carpeta de la app (drive.file)
+    private val driveConsent =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
+            try {
+                val r = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(res.data)
+                driveDone(r.accessToken, if (r.accessToken == null) "auth" else null)
+            } catch (e: Exception) {
+                driveDone(null, "auth")
+            }
+        }
+
+    private fun driveDone(token: String?, error: String?) {
+        val t = if (token != null) JSONObject.quote(token) else "null"
+        val e = if (error != null) JSONObject.quote(error) else "null"
+        js("window.__driveTok && window.__driveTok($t, $e)")
+    }
+
+    private fun requestDrive(interactive: Boolean) {
+        val req = AuthorizationRequest.builder()
+            .setRequestedScopes(listOf(Scope("https://www.googleapis.com/auth/drive.file")))
+            .build()
+        Identity.getAuthorizationClient(this).authorize(req)
+            .addOnSuccessListener { r ->
+                if (r.hasResolution()) {
+                    val pi = r.pendingIntent
+                    if (interactive && pi != null) {
+                        driveConsent.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                    } else driveDone(null, "auth")
+                } else driveDone(r.accessToken, if (r.accessToken == null) "auth" else null)
+            }
+            .addOnFailureListener { driveDone(null, "auth") }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -164,6 +201,11 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 "error"
             }
+        }
+
+        @JavascriptInterface
+        fun driveAuth(interactive: Boolean) {
+            runOnUiThread { requestDrive(interactive) }
         }
 
         @JavascriptInterface
