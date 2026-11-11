@@ -595,7 +595,7 @@ async function buildEditor(zip, draft, Parser, Serializer){
           const rs = resumenColor(cols, rows, c);
           if (rs.min) {
             const pt = rows[rs.min.ri] && rows[rs.min.ri][0] ? ` (${cols[0] || 'punto'} ${rows[rs.min.ri][0]})` : '';
-            const tot = rs.cnt.v + rs.cnt.a + rs.cnt.n + rs.cnt.r;
+            const tot = rs.cnt.v + rs.cnt.a + rs.cnt.b + rs.cnt.r;
             ns.push(EMPTY());
             ns.push(P(`El espesor mínimo registrado fue de ${fmtN(rs.min.e)} mm${pt}. De ${tot} mediciones: ${rs.cnt.b} sobre el espesor nominal, ${rs.cnt.v} entre la alerta y el nominal, ${rs.cnt.a} en rango de alerta y ${rs.cnt.r} bajo el espesor mínimo requerido.`));
           }
@@ -664,7 +664,7 @@ function tablaXml(cols, rows, color){
     return `<w:tc><w:tcPr><w:tcW w:w="${cw}" w:type="dxa"/>${fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''}<w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:spacing w:before="20" w:after="20"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr>${head || C ? '<w:b/>' : ''}${C ? `<w:color w:val="${C.txt}"/>` : ''}<w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t xml:space="preserve">${xesc(t == null ? '' : t)}</w:t></w:r></w:p></w:tc>`; };
   const colorOn = color && color.on && (color.cols || []).length;
   const pad = r => { const o = r.slice(0, n); while (o.length < n) o.push(''); return o; };
-  return `<w:tbl><w:tblPr><w:tblW w:w="${cw * n}" w:type="dxa"/><w:jc w:val="center"/><w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(brd).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="28" w:type="dxa"/><w:left w:w="57" w:type="dxa"/><w:bottom w:w="28" w:type="dxa"/><w:right w:w="57" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${'<w:gridCol w:w="' + cw + '"/>'.repeat(n)}</w:tblGrid>` +
+  return `<w:tbl><w:tblPr><w:tblW w:w="${cw * n}" w:type="dxa"/><w:jc w:val="center"/><w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(brd).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="28" w:type="dxa"/><w:left w:w="57" w:type="dxa"/><w:bottom w:w="28" w:type="dxa"/><w:right w:w="57" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${('<w:gridCol w:w="' + cw + '"/>').repeat(n)}</w:tblGrid>` +
     (cols.length ? `<w:tr><w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>${pad(cols).map(c => cell(c, true)).join('')}</w:tr>` : '') +
     rows.map(r => `<w:tr><w:trPr><w:cantSplit/></w:trPr>${pad(r).map((c, j) => cell(c, false, colorOn && color.cols.includes(j) ? colorOf(c, color) : null)).join('')}</w:tr>`).join('') + '</w:tbl>';
 }
@@ -1074,6 +1074,7 @@ else if (SR) {
 }
 
 function renderEditor(){
+  draft.secciones.forEach(s => (s.tablas || []).forEach(t => { if (t.color === undefined) t.color = newColor(s, t); }));
   $('e_intro').value = draft.intro;
   $('e_rec').value = draft.recomendaciones;
   $('e_andamios').innerHTML = draft.andamios.map((im, i) => thumb(im, 'andamios:' + i)).join('');
@@ -1372,7 +1373,7 @@ tabEd.addEventListener('input', e => {
 tabEd.addEventListener('click', async e => {
   const d = e.target.dataset;
   const T = s => { const [i, k] = s.split(':'); return draft.secciones[+i].tablas[+k]; };
-  if (d.tnew != null) { const s = draft.secciones[+d.tnew]; (s.tablas = s.tablas || []).push({ titulo: '', cols: ['Punto', 'Valor'], rows: [['', '']], dudas: [] }); }
+  if (d.tnew != null) { const s = draft.secciones[+d.tnew]; const t = { titulo: 'Mediciones de espesores', cols: ['Punto', 'Espesor (mm)'], rows: [['', ''], ['', ''], ['', '']], dudas: [] }; t.color = newColor(s, t); t.color.cols = [1]; (s.tablas = s.tablas || []).push(t); }
   else if (d.trow) { const t = T(d.trow); t.rows.push(t.cols.map(() => '')); }
   else if (d.tcol) { const t = T(d.tcol); t.cols.push(''); t.rows.forEach(r => r.push('')); }
   else if (d.trdel) { const [i, k, r] = d.trdel.split(':'); const t = draft.secciones[+i].tablas[+k]; t.rows.splice(+r, 1); t.dudas = (t.dudas || []).filter(x => +x.split(':')[0] !== +r).map(x => { const [a, b] = x.split(':'); return (+a > +r ? +a - 1 : +a) + ':' + b; }); }
@@ -1413,7 +1414,7 @@ $('ocrFile').onchange = async e => {
     if (!rows.length) throw { code: 'vacio' };
     const dudas = (Array.isArray(r.dudas) ? r.dudas : []).map(x => `${+x.fila}:${+x.columna}`).filter(k => /^\d+:\d+$/.test(k));
     const nt = { titulo: String(r.titulo || ''), cols, rows, dudas, notas: String(r.notas || '') };
-    if (isEspTabla(nt)) nt.color = newColor(s, nt);
+    nt.color = newColor(s, nt);
     (s.tablas = s.tablas || []).push(nt);
     renderEditor(); touch();
     const st2 = $('ocrst_' + i); if (st2) st2.textContent = `Tabla digitalizada: ${rows.length} filas. Revisa las celdas en amarillo antes de generar.`;
