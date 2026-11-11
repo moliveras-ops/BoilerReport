@@ -589,7 +589,7 @@ async function buildEditor(zip, draft, Parser, Serializer){
         ns.push(frag(doc, Parser, `<w:p><w:pPr><w:keepNext/><w:spacing w:after="60"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:i/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">${xesc(`Tabla N°${nTabla}${t.titulo ? ': ' + t.titulo : ''}`)}</w:t></w:r></w:p>`)[0]);
         const c = t.color;
         const colorOn = c && c.on && (c.cols || []).length;
-        if (colorOn && c.bar) ns.push(centerImgP(c.bar, 15 * EMU_CM, 4 * EMU_CM, 'Colorimetría', true));
+        if (colorOn && c.bar) ns.push(centerImgP(c.bar, 7.5 * EMU_CM, 2 * EMU_CM, 'Colorimetría', true));
         ns.push(frag(doc, Parser, tablaXml(cols, rows, t.color))[0]);
         if (colorOn) {
           const rs = resumenColor(cols, rows, c);
