@@ -600,6 +600,10 @@ async function buildEditor(zip, draft, Parser, Serializer){
             ns.push(P(`El espesor mínimo registrado fue de ${fmtN(rs.min.e)} mm${pt}. De ${tot} mediciones: ${rs.cnt.b} sobre el espesor nominal, ${rs.cnt.v} entre la alerta y el nominal, ${rs.cnt.a} en rango de alerta y ${rs.cnt.r} bajo el espesor mínimo requerido.`));
           }
         }
+        if (String(t.despues || '').trim()) {
+          ns.push(EMPTY());
+          String(t.despues).split(/\n/).map(x => x.trim()).filter(Boolean).forEach(x => ns.push(/^[-•–]\s*/.test(x) ? B(x.replace(/^[-•–]\s*/, '')) : P(x)));
+        }
       });
       const fotos = (s.fotos || []).filter(f => f.img);
       if (fotos.length) {
@@ -1358,12 +1362,14 @@ function tablaUI(i, k, t){
     ${d.size ? `<div class="warn" style="font-size:12px;color:var(--warn);margin-top:6px">⚠ ${d.size} celda(s) dudosa(s) en amarillo: revísalas. Se desmarcan al editarlas.</div>` : ''}
     ${t.notas ? `<div class="muted" style="font-size:12px;margin-top:6px">Notas de la hoja: ${esc(t.notas)}</div>` : ''}
     ${colorUI(i, k, t)}
+    <label>Texto después de la tabla (opcional)</label><textarea data-tdesp="${i}:${k}" placeholder="Un párrafo por línea. Empieza con “-” para viñetas.">${esc(t.despues || '')}</textarea>
     <div class="tacts"><button class="sm" data-trow="${i}:${k}">+ Fila</button><button class="sm" data-tcol="${i}:${k}">+ Columna</button><button class="sm" data-tcsv="${i}:${k}">CSV</button><button class="x" data-tdel="${i}:${k}">Quitar tabla</button></div></div>`;
 }
 tabEd.addEventListener('input', e => {
   const d = e.target.dataset;
   const T = (i, k) => draft.secciones[+i].tablas[+k];
   if (d.tt) { const [i, k] = d.tt.split(':'); T(i, k).titulo = e.target.value; }
+  else if (d.tdesp) { const [i, k] = d.tdesp.split(':'); T(i, k).despues = e.target.value; }
   else if (d.tc) { const [i, k, j] = d.tc.split(':'); T(i, k).cols[+j] = e.target.value; }
   else if (d.tv) { const [i, k, r, j] = d.tv.split(':'); const t = T(i, k); t.rows[+r][+j] = e.target.value;
     if (t.dudas) { const key = r + ':' + j; if (t.dudas.includes(key)) { t.dudas = t.dudas.filter(x => x !== key); e.target.parentElement.classList.remove('dud'); } } }
