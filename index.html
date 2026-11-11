@@ -292,7 +292,7 @@ body.has-dict .micw{display:flex}
 
   <button class="pri" id="gen" disabled>Generar informe</button>
   <div class="msg" id="genMsg"></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-11 19:50</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-11 19:55</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -1139,8 +1139,7 @@ function renderEditor(){
   $('e_secs').innerHTML = draft.secciones.map((s, i) => `<div class="sub"><div class="subh"><span>Sección ${i + 1}${[s.comp, s.sub, s.sub2].filter(Boolean).length ? ' · ' + esc([s.comp, s.sub, s.sub2].filter(Boolean).join(' › ')) : ''}</span><span><button class="x" data-up="${i}" style="color:var(--acc)">↑</button><button class="x" data-del="sec:${i}">Quitar</button></span></div>
     <div class="grid"><div><label>Zona</label><input type="text" data-sec="${i}:zona" value="${esc(s.zona)}" placeholder="Ej: Hogar Bajo" list="zonasList"></div>
     <div><label>Componente</label><input type="text" data-sec="${i}:comp" value="${esc(s.comp)}" placeholder="Ej: Ductos de Caída de Biomasa"></div></div>
-    <div class="grid"><div><label>Subcomponente (opcional)</label><input type="text" data-sec="${i}:sub" value="${esc(s.sub || '')}" placeholder="Ej: Pared Derecha"></div>
-    <div><label>Detalle (opcional)</label><input type="text" data-sec="${i}:sub2" value="${esc(s.sub2 || '')}" placeholder="Ej: Boquilla N.º 12"></div></div>
+    ${nivUI(s, i)}
     <label>RER asociado</label><select data-sec="${i}:rer">${rerOpts(s.rer)}</select>
     <label>Texto de la sección (opcional)</label><textarea data-sec="${i}:intro" placeholder="Si lo dejas vacío se usa el texto tipo: “Según lo definido en el plan de inspección preventivo programado…” con el RER asociado.">${esc(s.intro)}</textarea>
     <label>Hallazgos (uno por línea)</label><textarea data-sec="${i}:hallazgos">${esc(s.hallazgos)}</textarea>
@@ -1249,7 +1248,7 @@ $('addRer').onclick = () => {
 };
 $('addSec').onclick = () => {
   const last = draft.secciones[draft.secciones.length - 1];
-  draft.secciones.push({ zona: last ? last.zona : '', comp: '', rer: '', intro: '', hallazgos: '', fotos: [] }); renderEditor(); touch();
+  draft.secciones.push({ zona: last ? last.zona : '', comp: last && last.sub ? last.comp : '', sub: last && last.sub2 ? last.sub : '', niveles: last ? nivOf(last) : 2, rer: '', intro: '', hallazgos: '', fotos: [] }); renderEditor(); touch();
 };
 $('clearDraft').onclick = e => { if (!confirmInline(e.target)) return; draft = newDraft(); renderEditor(); touch(); };
 
@@ -1571,6 +1570,20 @@ tabEd.addEventListener('input', e => { const d = e.target.dataset; if (!d.tv) re
 
 document.addEventListener('toggle', e => { const d = e.target.dataset; if (d && d.rerfold != null) { const i = +d.rerfold; if (e.target.open) openRer.add(i); else openRer.delete(i); } }, true);
 
+
+// ---- niveles de título por sección (2 a 4) ----
+function nivOf(s){ return Math.max(s.niveles || 2, s.sub2 ? 4 : s.sub ? 3 : 2); }
+function nivUI(s, i){
+  const n = nivOf(s);
+  return (n >= 3 ? `<label>Subcomponente (nivel 3)</label><input type="text" data-sec="${i}:sub" value="${esc(s.sub || '')}" placeholder="Ej: Pared Derecha">` : '') +
+    (n >= 4 ? `<label>Detalle (nivel 4)</label><input type="text" data-sec="${i}:sub2" value="${esc(s.sub2 || '')}" placeholder="Ej: Boquilla N.º 12">` : '') +
+    `<div class="row" style="margin-top:6px">${n < 4 ? `<button class="sm" data-lvadd="${i}" style="color:var(--acc);border-color:var(--acc)">+ Agregar nivel</button>` : ''}${n > 2 ? `<button class="x" data-lvdel="${i}">− Quitar nivel</button>` : ''}</div>`;
+}
+tabEd.addEventListener('click', e => {
+  const d = e.target.dataset;
+  if (d.lvadd != null) { const s = draft.secciones[+d.lvadd]; s.niveles = Math.min(4, nivOf(s) + 1); renderEditor(); touch(); const f = document.querySelector(`[data-sec="${d.lvadd}:${s.niveles === 3 ? 'sub' : 'sub2'}"]`); if (f) f.focus(); }
+  else if (d.lvdel != null) { const s = draft.secciones[+d.lvdel]; const n = nivOf(s); if (n === 4) s.sub2 = ''; else if (n === 3) s.sub = ''; s.niveles = n - 1; renderEditor(); touch(); }
+});
 
 // ===== Importar RER desde PDF (pdf.js en el navegador; nada sale del dispositivo) =====
 const PDFJS_SRC = (window.PDFJS_BASE || 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/');
