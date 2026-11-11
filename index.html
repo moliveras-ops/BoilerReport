@@ -16,18 +16,18 @@
 :root{--bg:#f3f5f8;--card:#fff;--ink:#14212e;--mut:#5d6b7a;--line:#d9e0e8;--acc:#0b4f8a;--acc2:#e8f0f8;--ok:#1d7a46;--okb:#e6f4ec;--warn:#9a5b00;--warnb:#fdf3e1;--err:#b3261e}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "IBM Plex Sans",system-ui,sans-serif}
-header{background:var(--acc);color:#fff;padding:18px 18px 22px}
-header h1{margin:0;font-size:19px;font-weight:600}
-header p{margin:4px 0 0;opacity:.85;font-size:13px}
-main{max-width:720px;margin:-12px auto 40px;padding:0 12px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
-.card h2{margin:0 0 12px;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+header{background:var(--acc);color:#fff;padding:9px 14px;display:flex;align-items:baseline;gap:10px}
+header h1{margin:0;font-size:17px;font-weight:600}
+header p{margin:0;opacity:.8;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+main{max-width:720px;margin:0 auto 90px;padding:0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:8px}
+.card h2{margin:0 0 8px;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--acc);color:#fff;font-size:12px}
 label{display:block;font-size:12px;font-weight:500;color:var(--mut);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.03em}
 input[type=text],input[type=date],select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff;color:var(--ink)}
 input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
-@media(max-width:520px){.grid{grid-template-columns:1fr}}
+@media(max-width:330px){.grid{grid-template-columns:1fr}}
 button{font:inherit;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);padding:10px 14px;cursor:pointer}
 button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600;width:100%;padding:14px;font-size:16px}
 button.pri:disabled{opacity:.45;cursor:not-allowed}
@@ -57,8 +57,8 @@ button.sm{padding:7px 10px;font-size:13px}
 .logoPrev img{height:28px;max-width:90px;object-fit:contain}
 details summary{cursor:pointer;color:var(--acc);font-size:14px;margin-top:10px}
 code{font:500 12px "IBM Plex Mono",monospace;background:var(--acc2);color:var(--acc);padding:1px 5px;border-radius:4px}
-.tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;max-width:720px;margin:0 auto;padding:8px 12px;background:var(--bg)}
-.tabs button{flex:1;border-radius:8px;padding:10px 6px;font-weight:600;font-size:14px}
+.tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;max-width:720px;margin:0 auto;padding:6px 8px;background:var(--bg)}
+.tabs button{flex:1;border-radius:8px;padding:8px 4px;font-weight:600;font-size:14px}
 .tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 textarea{width:100%;min-height:80px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font:inherit;resize:vertical}
 .sub{border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;background:#fafbfd}
@@ -87,9 +87,11 @@ textarea{width:100%;min-height:80px;padding:10px 12px;border:1px solid var(--lin
 .chk .ok{color:var(--ok)}.chk .pend{color:var(--warn)}
 .chk small{color:var(--mut);display:block}
 .saved{font-size:12px;color:var(--mut);text-align:right;margin:-4px 0 8px}
-.micw{display:none;justify-content:flex-end;align-items:center;gap:8px;margin-top:4px}
+.micw{display:none;justify-content:flex-end;align-items:center;gap:8px;margin:-40px 6px 8px 0;position:relative;pointer-events:none}
+.micw > *{pointer-events:auto}
+body.has-dict #tab-editor textarea{padding-bottom:40px}
 body.has-dict .micw{display:flex}
-.mic{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;border-radius:999px;color:var(--acc);border-color:var(--acc)}
+.mic{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;font-size:12px;border-radius:999px;color:var(--acc);border-color:var(--acc);background:#fff}
 .mic.on{background:var(--err);border-color:var(--err);color:#fff}
 .mic svg{width:14px;height:14px}
 .partial{font-size:12px;color:var(--mut);font-style:italic;flex:1;text-align:right;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -115,13 +117,30 @@ body.has-dict .micw{display:flex}
 .tblx th input{font-weight:600;background:#eef2f7}
 .tblx .tacts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .ocrst{font-size:13px;color:var(--acc);margin-top:8px}
+.partial{pointer-events:none!important;background:rgba(255,255,255,.85)}
+label{margin:8px 0 3px}
+input[type=text],input[type=date],select{padding:9px 10px}
+textarea{min-height:64px;padding:9px 10px}
+.sub{padding:10px;margin-top:8px}
+.genbar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:rgba(243,245,248,.96);border-top:1px solid var(--line);padding:8px 10px calc(8px + env(safe-area-inset-bottom))}
+.genbar .in{max-width:720px;margin:0 auto}
+.genbar button.pri{padding:12px;font-size:15px}
+.genbar .msg{margin:0 0 6px;max-height:30vh;overflow:auto}
+details.secd{border-left:3px solid var(--acc)}
+details.secd > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-weight:600;font-size:14px}
+details.secd > summary::-webkit-details-marker{display:none}
+details.secd > summary .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details.secd > summary::before{content:'▸';color:var(--mut)}
+details.secd[open] > summary::before{content:'▾'}
+details.secd[open] > summary{margin-bottom:4px}
+#tplFold > summary,#nubeFold > summary{cursor:pointer}
 .lock{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
 <body>
 <header>
   <h1>BoilerReport</h1>
-  <p>Informes de inspección IQS · Calderas</p>
+  <p>Informes IQS · Calderas</p>
 </header>
 <nav class="tabs" id="tabs">
   <button data-tab="datos" class="on">Datos</button>
@@ -131,13 +150,13 @@ body.has-dict .micw{display:flex}
 <main>
 <div id="tab-datos">
   <section class="card" id="infCard">
-    <h2>Informe</h2>
     <div class="row"><select id="infSel"></select><button class="sm" id="infNew">+ Nuevo</button></div>
     <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="sm" id="infExp">Exportar</button><button class="sm" id="infImp">Importar</button><span style="flex:1"></span><button class="x" id="infDel">Eliminar</button></div>
     <input type="file" id="infFile" accept=".json,application/json" hidden>
     <div id="syncBox" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
       <div class="muted" id="syncWhere" style="font-size:12px;font-weight:600"></div>
       <div class="row" style="margin-top:4px"><button class="sm" id="syncBtn" style="background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600">☁ Sincronizar</button><span class="muted" id="syncSt" style="font-size:12px;flex:1"></span></div>
+      <details id="nubeFold" style="margin-top:6px"><summary style="font-size:13px">Configurar nube</summary>
       <details style="margin-top:8px"><summary>Guardar en Google Drive</summary>
         <div id="drvClientBox">
           <label>ID de cliente web de Google</label><input type="text" id="drvClient" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off">
@@ -158,10 +177,12 @@ body.has-dict .micw{display:flex}
         <label>Token</label><input type="password" id="syncTok" placeholder="github_pat_…" autocomplete="off">
         <button class="sm" id="syncSave" style="width:100%;margin-top:8px">Guardar y sincronizar con GitHub</button>
       </details>
+      </details>
     </div>
   </section>
-  <section class="card">
-    <h2><span class="n">1</span>Plantilla</h2>
+  <details class="card fold" id="tplFold">
+    <summary><span><span class="n" style="display:inline-grid;margin-right:6px">1</span>Plantilla</span><span class="muted" id="tplSum">Cargando…</span></summary>
+    <div style="margin-top:10px">
     <div class="drop" id="drop">
       <input type="file" id="file" accept=".docx,.xlsx">
       <div id="dropTxt"><strong>Toca para cargar la plantilla</strong><br><span class="muted">Word (.docx) o Excel (.xlsx)</span></div>
@@ -178,7 +199,8 @@ body.has-dict .micw{display:flex}
       <p class="muted">Funcionan en el cuerpo, tablas, encabezados y pies de página, y conservan el formato del texto. Cualquier otro marcador, como <code>{{UBICACION}}</code>, aparece automáticamente como campo extra.</p>
       <button class="sm" id="sample">Descargar plantilla Word de ejemplo</button>
     </details>
-  </section>
+    </div>
+  </details>
 
   <section class="card">
     <h2><span class="n">2</span>Cliente</h2>
@@ -257,14 +279,12 @@ body.has-dict .micw{display:flex}
     <h2>4.0 Resumen ejecutivo · Reportes RER</h2>
     <button class="sm" id="rerPdfBtn" style="width:100%;background:var(--acc2);border-color:var(--acc);color:var(--acc);font-weight:600">Cargar RER desde PDF</button>
     <input type="file" id="rerPdf" accept="application/pdf,.pdf" multiple hidden>
-    <p class="muted" style="margin:6px 0 0">Extrae N°, fecha, componente, evaluación y fotos. Revisa y agrega cada uno al informe.</p>
     <div id="rerReview"></div>
     <div id="e_rer"></div>
     <button class="sm addb" id="addRer">+ Agregar RER</button>
   </section>
   <section class="card">
     <h2>5.0 Inspección</h2>
-    <p class="muted" style="margin:0">Cada sección es un componente inspeccionado. Las secciones con la misma zona quedan agrupadas bajo un solo título.</p>
     <div id="e_secs"></div>
     <button class="sm addb" id="addSec">+ Agregar sección</button>
   </section>
@@ -290,9 +310,8 @@ body.has-dict .micw{display:flex}
   </section>
 </div>
 
-  <button class="pri" id="gen" disabled>Generar informe</button>
-  <div class="msg" id="genMsg"></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-11 20:10</span></p>
+  <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><button class="pri" id="gen" disabled>Generar informe</button></div></div>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-11 21:00</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -890,6 +909,7 @@ async function loadBuffer(buf, ext, name){
     else msg('tplMsg','ok', `Marcadores detectados: ${r.found.length}.` + (extra.length ? ' Los de color ámbar aparecen como campos extra en “Datos del informe”.' : ''));
     renderExtra(extra);
     $('gen').disabled = false; msg('genMsg');
+    const sum = $('tplSum'); if (sum) sum.textContent = `${name} · ${r.found.length} marcadores`;
   } catch(err) {
     console.error(err); tpl = null; $('gen').disabled = true;
     msg('tplMsg','err','No pude leer el archivo. Verifica que no esté protegido con contraseña ni dañado.');
