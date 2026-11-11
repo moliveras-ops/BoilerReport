@@ -923,6 +923,7 @@ const newDraft = () => { return { intro:'', andamios:[], esqNum:null, esqPartes:
   espesores: ESP_ZONAS.map(z => [z,'','','','']), ficha: FICHA_LBL.map(() => ''), equipoId: null,
   rer:[], secciones:[], recomendaciones:'' }; };
 let draft = newDraft();
+const openRer = new Set();
 
 // ---- tabs ----
 $('tabs').onclick = e => { const t = e.target.dataset.tab; if (t) showTab(t); };
@@ -1086,10 +1087,11 @@ function renderEditor(){
   $('e_esp').innerHTML = '<tr>' + ESP_COLS.map(c => `<th>${c}</th>`).join('') + '<th></th></tr>' +
     draft.espesores.map((r, i) => '<tr>' + r.map((v, j) => `<td><input type="text" data-esp="${i}:${j}" value="${esc(v)}"></td>`).join('') + `<td><button class="x" data-del="esp:${i}">✕</button></td></tr>`).join('');
   $('e_ficha').innerHTML = FICHA_LBL.map((l, i) => `<span>${l}</span><input type="text" data-ficha="${i}" value="${esc(draft.ficha[i] || '')}">`).join('');
-  $('e_rer').innerHTML = draft.rer.map((r, i) => `<div class="sub"><div class="subh"><span>RER N°${esc(r.num || '')}</span><button class="x" data-del="rer:${i}">Quitar</button></div>
+  $('e_rer').innerHTML = draft.rer.map((r, i) => `<details class="sub fold" data-rerfold="${i}" ${openRer.has(i) ? 'open' : ''}><summary><span>RER N°${esc(r.num || '')}${r.comp ? ' · ' + esc(r.comp) : ''}</span><span class="muted">${esc(fmtD(r.fecha))}${r.desc ? ' · ' + esc(r.desc.slice(0, 60)) + (r.desc.length > 60 ? '…' : '') : ' · sin hallazgo'}</span></summary>
     <div class="grid"><div><label>N° RER</label><input type="text" data-rer="${i}:num" value="${esc(r.num)}"></div><div><label>Fecha</label><input type="date" data-rer="${i}:fecha" value="${esc(r.fecha)}"></div></div>
     <label>Componente</label><input type="text" data-rer="${i}:comp" value="${esc(r.comp)}" placeholder="Ej: Ductos de caída de biomasa">
-    <label>Hallazgo (resumen)</label><textarea data-rer="${i}:desc" placeholder="Descripción breve">${esc(r.desc)}</textarea></div>`).join('');
+    <label>Hallazgo (resumen)</label><textarea data-rer="${i}:desc" placeholder="Descripción breve">${esc(r.desc)}</textarea>
+    <div style="text-align:right;margin-top:6px"><button class="x" data-del="rer:${i}">Quitar RER</button></div></details>`).join('');
   let fn = 0;
   $('e_secs').innerHTML = draft.secciones.map((s, i) => `<div class="sub"><div class="subh"><span>Sección ${i + 1}${s.comp ? ' · ' + esc(s.comp) : ''}</span><span><button class="x" data-up="${i}" style="color:var(--acc)">↑</button><button class="x" data-del="sec:${i}">Quitar</button></span></div>
     <div class="grid"><div><label>Zona</label><input type="text" data-sec="${i}:zona" value="${esc(s.zona)}" placeholder="Ej: Hogar Bajo" list="zonasList"></div>
@@ -1126,8 +1128,8 @@ const rerOpts = sel => `<option value="">— Sin RER —</option>` + draft.rer.m
 tabEd.addEventListener('change', e => {
   const d = e.target.dataset;
   if (d.rer) {
-    const i = +d.rer.split(':')[0]; const h = $('e_rer').querySelectorAll('.subh')[i];
-    if (h && h.firstChild) h.firstChild.textContent = 'RER N°' + (draft.rer[i].num || '');
+    const i = +d.rer.split(':')[0]; const sm = $('e_rer').querySelectorAll('summary')[i]; const r = draft.rer[i];
+    if (sm) { sm.children[0].textContent = 'RER N°' + (r.num || '') + (r.comp ? ' · ' + r.comp : ''); sm.children[1].textContent = fmtD(r.fecha) + (r.desc ? ' · ' + r.desc.slice(0, 60) + (r.desc.length > 60 ? '…' : '') : ' · sin hallazgo'); }
     document.querySelectorAll('[data-sec$=":rer"]').forEach(s => { const k = +s.dataset.sec.split(':')[0]; s.innerHTML = rerOpts(draft.secciones[k].rer); });
   } else if (d.sec && /:comp$/.test(d.sec)) {
     const i = +d.sec.split(':')[0]; const h = $('e_secs').querySelectorAll(':scope > .sub > .subh')[i];
@@ -1197,7 +1199,7 @@ $('eqDel').onclick = e => {
 $('addEsp').onclick = () => { draft.espesores.push(['','','','','']); renderEditor(); touch(); };
 $('addRer').onclick = () => {
   const n = String(draft.rer.length + 1).padStart(3, '0');
-  draft.rer.push({ num: n, fecha: $('f_FECHA').value || '', comp: '', desc: '' }); renderEditor(); touch();
+  draft.rer.push({ num: n, fecha: $('f_FECHA').value || '', comp: '', desc: '' }); openRer.add(draft.rer.length - 1); renderEditor(); touch();
 };
 $('addSec').onclick = () => {
   const last = draft.secciones[draft.secciones.length - 1];
@@ -1530,6 +1532,8 @@ tabEd.addEventListener('input', e => {
   const [i, k, f] = d.cf.split(':'); const c = draft.secciones[+i].tablas[+k].color; c[f] = e.target.value; if (f === 'tnom' || f === 'tmin') { c.ref = -1; c.refName = ''; const sel = document.querySelector(`[data-cref="${i}:${k}"]`); if (sel) sel.value = '-1'; } refreshColors(+i, +k); touch();
 });
 tabEd.addEventListener('input', e => { const d = e.target.dataset; if (!d.tv) return; const [i, k] = d.tv.split(':').map(Number); refreshColors(i, k); });
+
+document.addEventListener('toggle', e => { const d = e.target.dataset; if (d && d.rerfold != null) { const i = +d.rerfold; if (e.target.open) openRer.add(i); else openRer.delete(i); } }, true);
 
 // ===== Importar RER desde PDF (pdf.js en el navegador; nada sale del dispositivo) =====
 const PDFJS_SRC = (window.PDFJS_BASE || 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/');
