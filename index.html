@@ -98,6 +98,13 @@ body.has-dict .micw{display:flex}
 .rv .acts2{display:flex;gap:8px;margin-top:10px}
 .rv .acts2 button{flex:1}
 .rv .pri2{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600}
+.fold summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:600;font-size:15px}
+.fold summary::-webkit-details-marker{display:none}
+.fold summary::after{content:'▾';color:var(--mut);margin-left:4px}
+.fold[open] summary::after{content:'▴'}
+.fold summary{display:grid;grid-template-columns:1fr auto;color:var(--ink)}
+.fold summary::after{grid-column:2;grid-row:1}
+.fold summary .muted{font-weight:400;font-size:12px;grid-column:1/3;grid-row:2;text-align:left;margin-top:2px}
 .lock{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -187,22 +194,25 @@ body.has-dict .micw{display:flex}
     <div class="thumbs" id="e_esqPartes"></div>
     <button class="sm addb" data-addimg="esqPartes">Cargar esquema</button>
   </section>
-  <section class="card">
-    <h2>Datos técnicos del equipo</h2>
+  <details class="card fold" id="techFold">
+    <summary><span>3.3 Espesores y 3.4 Ficha técnica</span><span class="muted" id="techSum"></span></summary>
+  <div class="sub" style="background:#fff">
+    <div class="subh" style="margin-bottom:8px">Datos técnicos del equipo</div>
     <p class="muted" style="margin-top:0">Precarga la tabla de espesores y la ficha técnica del equipo.</p>
     <div class="row"><select id="eqSel"></select><button class="sm" id="eqLoad">Cargar</button></div>
     <div class="row" style="margin-top:8px"><input type="text" id="eqName" placeholder="Nombre para guardar (ej: Caldera Recuperadora – Planta Valdivia)"><button class="sm" id="eqSave">Guardar</button></div>
     <div class="row" style="margin-top:6px;justify-content:space-between"><span class="muted" id="eqInfo"></span><button class="x" id="eqDel" hidden>Eliminar equipo guardado</button></div>
-  </section>
-  <section class="card">
-    <h2>3.3 Espesores de referencia</h2>
+  </div>
+  <div class="sub" style="background:#fff">
+    <div class="subh" style="margin-bottom:8px">3.3 Espesores de referencia</div>
     <div class="tscroll"><table id="e_esp"></table></div>
     <button class="sm addb" id="addEsp">+ Agregar fila</button>
-  </section>
-  <section class="card">
-    <h2>3.4 Ficha técnica</h2>
+  </div>
+  <div class="sub" style="background:#fff">
+    <div class="subh" style="margin-bottom:8px">3.4 Ficha técnica</div>
     <div class="ficha" id="e_ficha"></div>
-  </section>
+  </div>
+  </details>
   <section class="card">
     <h2>4.0 Resumen ejecutivo · Reportes RER</h2>
     <button class="sm" id="rerPdfBtn" style="width:100%;background:var(--acc2);border-color:var(--acc);color:var(--acc);font-weight:600">Cargar RER desde PDF</button>
@@ -1036,8 +1046,8 @@ tabEd.addEventListener('input', e => {
   const d = e.target.dataset;
   if (e.target.id === 'e_intro') draft.intro = e.target.value;
   else if (e.target.id === 'e_rec') draft.recomendaciones = e.target.value;
-  else if (d.esp) { const [i, j] = d.esp.split(':'); draft.espesores[+i][+j] = e.target.value; markManual(); }
-  else if (d.ficha) { draft.ficha[+d.ficha] = e.target.value; markManual(); }
+  else if (d.esp) { const [i, j] = d.esp.split(':'); draft.espesores[+i][+j] = e.target.value; markManual(); renderTechSum(); }
+  else if (d.ficha) { draft.ficha[+d.ficha] = e.target.value; markManual(); renderTechSum(); }
   else if (d.rer) { const [i, k] = d.rer.split(':'); draft.rer[+i][k] = e.target.value; }
   else if (d.sec) { const [i, k] = d.sec.split(':'); draft.secciones[+i][k] = e.target.value; }
   else if (d.cap) { const [i, k] = d.cap.split(':'); draft.secciones[+i].fotos[+k].cap = e.target.value; }
@@ -1079,7 +1089,13 @@ function confirmInline(btn){
   return false;
 }
 // ---- equipos ----
+function renderTechSum(){
+  const e = eqById(draft.equipoId);
+  const f = draft.ficha.filter(x => String(x).trim()).length, r = draft.espesores.filter(x => x.slice(1).some(v => String(v).trim())).length;
+  $('techSum').textContent = (e ? e.nombre + ' · ' : '') + `${r} filas · ficha ${f}/${FICHA_LBL.length}`;
+}
 function renderEq(){
+  renderTechSum();
   const eqs = allEq();
   if (!eqs.length) { $('eqSel').innerHTML = '<option value="">— Sin equipos guardados —</option>'; $('eqInfo').textContent = 'Llena las tablas y guárdalas con un nombre para reutilizarlas.'; $('eqDel').hidden = true; return; }
   $('eqSel').innerHTML = eqs.map(e => `<option value="${esc(e.id)}" ${e.id === draft.equipoId ? 'selected' : ''}>${esc(e.nombre)}${e.id.startsWith('u:') ? ' (guardado)' : ''}</option>`).join('');
@@ -1167,6 +1183,7 @@ function renderChk(){
 $('chk').onclick = e => {
   const li = e.target.closest('li'); if (!li || !li.dataset.go) return;
   const [tab, id] = li.dataset.go.split(':'); showTab(tab);
+  if (/^e_(esp|ficha)$/.test(id)) $('techFold').open = true;
   const el = id && $(id); if (el) { el.scrollIntoView({ block: 'center' }); if (el.focus) el.focus({ preventScroll: true }); }
 };
 $('dlTpl').onclick = async () => {
