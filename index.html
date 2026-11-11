@@ -600,15 +600,23 @@ async function buildEditor(zip, draft, Parser, Serializer){
     // quitar apartado modelo (todo entre el título INSPECCIÓN y RECOMENDACIONES)
     let n = hInsp.nextSibling; while (n && n !== hRec) { const nx = n.nextSibling; n.parentNode.removeChild(n); n = nx; }
     const rowImg = kids(tblProto, 'w:tr')[0], rowCap = kids(tblProto, 'w:tr')[1];
-    let foto = 0, nTabla = 0, lastZona = null; const ns = [];
+    let foto = 0, nTabla = 0, lastZona = null, lastComp = null, lastSub = null; const ns = [];
+    // títulos numerados: zona 5.x · componente 5.x.x · subcomponente 5.x.x.x · detalle 5.x.x.x.x
+    const HL = (lvl, text) => {
+      const h = cleanClone(lvl === 1 ? h1Proto : h2Proto);
+      if (lvl > 2) { const il = h.getElementsByTagName('w:ilvl')[0]; if (il) il.setAttribute('w:val', String(lvl)); }
+      setT(h, text); ns.push(EMPTY()); ns.push(h);
+    };
     secs.forEach(s => {
-      const zona = (s.zona || '').trim();
-      if (zona && zona !== lastZona) { ns.push(EMPTY()); const h = cleanClone(h1Proto); setT(h, zona); ns.push(h); lastZona = zona; }
-      if (s.comp) { ns.push(EMPTY()); const h = cleanClone(h2Proto); setT(h, s.comp); ns.push(h); }
+      const zona = (s.zona || '').trim(), comp = (s.comp || '').trim(), sub = (s.sub || '').trim(), sub2 = (s.sub2 || '').trim();
+      if (zona && zona !== lastZona) { HL(1, zona); lastZona = zona; lastComp = null; lastSub = null; }
+      if (comp && comp !== lastComp) { HL(2, comp); lastComp = comp; lastSub = null; }
+      if (sub && sub !== lastSub) { HL(3, sub); lastSub = sub; }
+      if (sub2) HL(4, sub2);
       let intro = (s.intro || '').trim();
       if (!intro) {
         const r = (draft.rer || []).find(x => String(x.num) === String(s.rer));
-        intro = `Según lo definido en el plan de inspección preventivo programado, se realizó una inspección visual a ${lc(s.comp || zona || 'el componente')}. Como resultado de la inspección` +
+        intro = `Según lo definido en el plan de inspección preventivo programado, se realizó una inspección visual a ${lc(sub2 || sub || comp || zona || 'el componente')}. Como resultado de la inspección` +
           (r ? `, informado en reporte RER N°${r.num} enviado el día ${fmtD(r.fecha)}, se observaron los siguientes hallazgos relevantes:` : ', se observó lo siguiente:');
       }
       ns.push(EMPTY()); ns.push(P(intro));
@@ -1127,9 +1135,11 @@ function renderEditor(){
     <label>Hallazgo (resumen)</label><textarea data-rer="${i}:desc" placeholder="Descripción breve">${esc(r.desc)}</textarea>
     <div style="text-align:right;margin-top:6px"><button class="x" data-del="rer:${i}">Quitar RER</button></div></details>`).join('');
   let fn = 0;
-  $('e_secs').innerHTML = draft.secciones.map((s, i) => `<div class="sub"><div class="subh"><span>Sección ${i + 1}${s.comp ? ' · ' + esc(s.comp) : ''}</span><span><button class="x" data-up="${i}" style="color:var(--acc)">↑</button><button class="x" data-del="sec:${i}">Quitar</button></span></div>
+  $('e_secs').innerHTML = draft.secciones.map((s, i) => `<div class="sub"><div class="subh"><span>Sección ${i + 1}${[s.comp, s.sub, s.sub2].filter(Boolean).length ? ' · ' + esc([s.comp, s.sub, s.sub2].filter(Boolean).join(' › ')) : ''}</span><span><button class="x" data-up="${i}" style="color:var(--acc)">↑</button><button class="x" data-del="sec:${i}">Quitar</button></span></div>
     <div class="grid"><div><label>Zona</label><input type="text" data-sec="${i}:zona" value="${esc(s.zona)}" placeholder="Ej: Hogar Bajo" list="zonasList"></div>
     <div><label>Componente</label><input type="text" data-sec="${i}:comp" value="${esc(s.comp)}" placeholder="Ej: Ductos de Caída de Biomasa"></div></div>
+    <div class="grid"><div><label>Subcomponente (opcional)</label><input type="text" data-sec="${i}:sub" value="${esc(s.sub || '')}" placeholder="Ej: Pared Derecha"></div>
+    <div><label>Detalle (opcional)</label><input type="text" data-sec="${i}:sub2" value="${esc(s.sub2 || '')}" placeholder="Ej: Boquilla N.º 12"></div></div>
     <label>RER asociado</label><select data-sec="${i}:rer">${rerOpts(s.rer)}</select>
     <label>Texto de la sección (opcional)</label><textarea data-sec="${i}:intro" placeholder="Si lo dejas vacío se usa el texto tipo: “Según lo definido en el plan de inspección preventivo programado…” con el RER asociado.">${esc(s.intro)}</textarea>
     <label>Hallazgos (uno por línea)</label><textarea data-sec="${i}:hallazgos">${esc(s.hallazgos)}</textarea>
@@ -1165,9 +1175,10 @@ tabEd.addEventListener('change', e => {
     const i = +d.rer.split(':')[0]; const sm = $('e_rer').querySelectorAll('summary')[i]; const r = draft.rer[i];
     if (sm) { sm.children[0].textContent = 'RER N°' + (r.num || '') + (r.comp ? ' · ' + r.comp : ''); sm.children[1].textContent = fmtD(r.fecha) + (r.desc ? ' · ' + r.desc.slice(0, 60) + (r.desc.length > 60 ? '…' : '') : ' · sin hallazgo'); }
     document.querySelectorAll('[data-sec$=":rer"]').forEach(s => { const k = +s.dataset.sec.split(':')[0]; s.innerHTML = rerOpts(draft.secciones[k].rer); });
-  } else if (d.sec && /:comp$/.test(d.sec)) {
+  } else if (d.sec && /:(comp|sub|sub2)$/.test(d.sec)) {
     const i = +d.sec.split(':')[0]; const h = $('e_secs').querySelectorAll(':scope > .sub > .subh')[i];
-    if (h && h.firstChild) h.firstChild.textContent = `Sección ${i + 1}${draft.secciones[i].comp ? ' · ' + draft.secciones[i].comp : ''}`;
+    const s = draft.secciones[i], nm = [s.comp, s.sub, s.sub2].filter(Boolean).join(' › ');
+    if (h && h.firstChild) h.firstChild.textContent = `Sección ${i + 1}${nm ? ' · ' + nm : ''}`;
   }
 });
 tabEd.addEventListener('click', e => {
