@@ -292,7 +292,7 @@ body.has-dict .micw{display:flex}
 
   <button class="pri" id="gen" disabled>Generar informe</button>
   <div class="msg" id="genMsg"></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-11 19:55</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-11 19:58</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -1140,8 +1140,7 @@ function renderEditor(){
     <div class="grid"><div><label>Zona</label><input type="text" data-sec="${i}:zona" value="${esc(s.zona)}" placeholder="Ej: Hogar Bajo" list="zonasList"></div>
     <div><label>Componente</label><input type="text" data-sec="${i}:comp" value="${esc(s.comp)}" placeholder="Ej: Ductos de Caída de Biomasa"></div></div>
     ${nivUI(s, i)}
-    <label>RER asociado</label><select data-sec="${i}:rer">${rerOpts(s.rer)}</select>
-    <label>Texto de la sección (opcional)</label><textarea data-sec="${i}:intro" placeholder="Si lo dejas vacío se usa el texto tipo: “Según lo definido en el plan de inspección preventivo programado…” con el RER asociado.">${esc(s.intro)}</textarea>
+    <label>Texto de la sección (opcional)</label><textarea data-sec="${i}:intro" placeholder="Si lo dejas vacío se usa el texto tipo: “Según lo definido en el plan de inspección preventivo programado…”">${esc(s.intro)}</textarea>
     <label>Hallazgos (uno por línea)</label><textarea data-sec="${i}:hallazgos">${esc(s.hallazgos)}</textarea>
     <label>Tablas</label>${(s.tablas || []).map((t, k) => tablaUI(i, k, t)).join('')}
     <div class="ocrst" id="ocrst_${i}"></div>
