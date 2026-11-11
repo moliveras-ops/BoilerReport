@@ -1,6 +1,6 @@
-# Generador de Informes Tipo
+# BoilerReport
 
-Web app para generar informes de inspección IQS en Word (.docx) a partir de una plantilla con marcadores `{{CAMPO}}`.
+Web app (BoilerReport) para generar informes de inspección IQS en Word (.docx) a partir de una plantilla con marcadores `{{CAMPO}}`.
 
 - **Datos:** OT, TAG, equipo, cliente, fecha y campos extra detectados en la plantilla.
 - **Editor:** introducción, esquemas, espesores de referencia, ficha técnica, RER, secciones de inspección con fotos y recomendaciones. Dictado por voz en Chrome.
