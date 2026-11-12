@@ -369,7 +369,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 12:45</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 12:55</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -1195,7 +1195,9 @@ function spWorker(){
   spW.onerror = () => { Object.values(spCb).forEach(f => f({ err: 'worker' })); spCb = {}; spW = null; };
   return spW;
 }
-const spAsk = (words, add) => new Promise(res => { const id = ++spSeq; spCb[id] = res; spWorker().postMessage({ id, words, add }); });
+let spRem = [];
+const spAsk = (words, add) => new Promise(res => { const id = ++spSeq; spCb[id] = res; spWorker().postMessage({ id, words, add, rem: spRem }); spRem = []; });
+const spDicHtml = () => { const d = spDic(); return d.length ? `<details style="margin-top:14px"><summary class="muted" style="font-size:13px">Mi diccionario (${d.length})</summary><div class="ch" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${d.map(w => `<button class="sm" data-sprm="${esc(w)}">${esc(w)} ✕</button>`).join('')}</div></details>` : ''; };
 const spDic = () => LS.get('it_dic', []);
 const WRE = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+/g;
 function spFields(){
@@ -1220,20 +1222,23 @@ async function spRun(){
   const r = await spAsk(Object.keys(occ), spDic());
   if (r.err) { body.innerHTML = '<p style="color:var(--warn)">No se pudo cargar el diccionario. Abre la app una vez con señal para descargarlo.</p>'; return; }
   const bad = Object.keys(r.bad);
-  if (!bad.length) { body.innerHTML = '<p style="color:var(--ok);font-size:15px">✓ No se encontraron errores de ortografía.</p>'; return; }
+  if (!bad.length) { body.innerHTML = '<p style="color:var(--ok);font-size:15px">✓ No se encontraron errores de ortografía.</p>' + spDicHtml(); return; }
   body.innerHTML = `<p class="muted" style="margin-top:0">${bad.length} palabra(s) para revisar. Toca la corrección o agrégala al diccionario si está bien escrita.</p>` + bad.map(w => {
     const el = occ[w][0], v = el.value, i = v.search(new RegExp('(^|[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ])' + w + '(?![A-Za-zÁÉÍÓÚÜÑáéíóúüñ])'));
     const a = Math.max(0, i - 30), ctx = (a ? '…' : '') + esc(v.slice(a, i + w.length + 32)).replace(new RegExp('(^|[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ])(' + w + ')(?![A-Za-zÁÉÍÓÚÜÑáéíóúüñ])'), '$1<b>$2</b>') + '…';
     return `<div class="spi" data-spw="${esc(w)}"><div class="w">${esc(w)}</div><div class="ctx">${esc(spLabel(el))}${occ[w].length > 1 ? ' (+' + (occ[w].length - 1) + ')' : ''}: ${ctx}</div>
-      <div class="ch">${r.bad[w].map(sg => `<button class="sm sg" data-spfix="${esc(sg)}">${esc(sg)}</button>`).join('')}<button class="sm" data-spadd="1">+ Diccionario</button><button class="sm" data-spign="1">Ignorar</button></div></div>`;
-  }).join('');
+      <div class="ch">${r.bad[w].map(sg => `<button class="sm sg" data-spfix="${esc(sg)}">${esc(sg)}</button>`).join('')}<button class="sm" data-spadd="1">+ Diccionario</button><button class="sm" data-spign="1">Ignorar</button></div>
+      <div class="row" style="margin-top:8px;gap:6px"><input type="text" class="spin" value="${esc(w)}" autocomplete="off" spellcheck="false" style="flex:1;min-width:0"><button class="sm" data-spedit="1" style="color:var(--acc);border-color:var(--acc);font-weight:600">Cambiar</button></div></div>`;
+  }).join('') + spDicHtml();
   spRun.occ = occ;
 }
 $('spBtn').onclick = spRun;
 $('spClose').onclick = () => { $('spModal').hidden = true; document.body.classList.remove('noscroll'); };
 $('spBody').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.sprm != null) { const w = b.dataset.sprm; LS.set('it_dic', spDic().filter(x => x !== w)); spRem.push(w); b.remove(); return; }
   const box = b.closest('.spi'), w = box.dataset.spw;
+  if (b.dataset.spedit) { const v = box.querySelector('.spin').value.trim(); if (!v || v === w) return; b.dataset.spfix = v; }
   if (b.dataset.spfix != null) {
     const re = new RegExp('(^|[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ])' + w + '(?![A-Za-zÁÉÍÓÚÜÑáéíóúüñ])', 'g');
     let fx = b.dataset.spfix; if (w[0] === w[0].toUpperCase() && fx[0] === fx[0].toLowerCase()) fx = fx[0].toUpperCase() + fx.slice(1);
@@ -1241,7 +1246,7 @@ $('spBody').addEventListener('click', e => {
   } else if (b.dataset.spadd) { const d = spDic(); if (!d.includes(w)) { d.push(w); LS.set('it_dic', d); } }
   else if (b.dataset.spign) spIgn.add(w);
   box.remove();
-  if (!$('spBody').querySelector('.spi')) $('spBody').innerHTML = '<p style="color:var(--ok);font-size:15px">✓ Revisión terminada.</p>';
+  if (!$('spBody').querySelector('.spi')) $('spBody').innerHTML = '<p style="color:var(--ok);font-size:15px">✓ Revisión terminada.</p>' + spDicHtml();
 });
 // ---- datos del informe dentro del Editor (espejo de 📋 Datos) ----
 const ED_MIR = ['cliente', 'f_OT', 'x_CORRELATIVO', 'f_EQUIPO', 'f_TAG', 'x_PLANTA', 'f_PALABRA', 'f_FECHA'];
