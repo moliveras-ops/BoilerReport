@@ -356,7 +356,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-11 21:00</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 11:45</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -660,7 +660,7 @@ async function buildEditor(zip, draft, Parser, Serializer){
     insAfter(rerProto, ns); rerProto.parentNode.removeChild(rerProto);
   }
   // 6. Inspección
-  const secs = (draft.secciones || []).filter(s => s.zona || s.comp || s.hallazgos || (s.fotos || []).length || (s.tablas || []).length);
+  const secs = (draft.secciones || []).filter(s => s.zona || s.comp || s.hallazgos || s.post || (s.fotos || []).length || (s.tablas || []).length);
   if (secs.length) {
     // quitar apartado modelo (todo entre el título INSPECCIÓN y RECOMENDACIONES)
     let n = hInsp.nextSibling; while (n && n !== hRec) { const nx = n.nextSibling; n.parentNode.removeChild(n); n = nx; }
@@ -733,6 +733,10 @@ async function buildEditor(zip, draft, Parser, Serializer){
           tbl.appendChild(ri); tbl.appendChild(rc);
         }
         ns.push(tbl);
+      }
+      if (String(s.post || '').trim()) {
+        ns.push(EMPTY());
+        String(s.post).split(/\n/).map(x => x.trim()).filter(Boolean).forEach(x => ns.push(/^[-•–]\s*/.test(x) ? B(x.replace(/^[-•–]\s*/, '')) : P(x)));
       }
     });
     ns.push(EMPTY());
@@ -1309,7 +1313,8 @@ function renderEditor(){
     <div class="ocrst" id="ocrst_${i}"></div>
     <div class="row" style="margin-top:6px"><button class="sm addb" style="margin:0" data-tnew="${i}">+ Tabla manual</button>${sampleOk ? `<button class="sm addb" style="margin:0" data-ocr="${i}">Tabla desde foto (manuscrito)</button>` : ''}</div>
     <label>Fotografías</label><div class="thumbs">${s.fotos.map((f, k) => thumb(f.img, `foto:${i}:${k}`, `${i}:${k}`, f.cap, 'Fotografía N°' + (++fn))).join('')}</div>
-    <button class="sm addb" data-addimg="sec:${i}">+ Agregar fotos</button></div></div>`).join('') +
+    <button class="sm addb" data-addimg="sec:${i}">+ Agregar fotos</button>
+    <label>Texto después de las fotos (opcional)</label><textarea data-sec="${i}:post" placeholder="Un párrafo por línea. Empieza con “-” para viñetas.">${esc(s.post || '')}</textarea></div></div>`).join('') +
     `<datalist id="zonasList">${[...new Set(draft.secciones.map(s => s.zona).filter(Boolean).concat(['Hogar Bajo','Hogar Alto','Sobrecalentador Primario','Sobrecalentador Secundario','Banco Generador','Economizador','Precalentador de Aire Primario']))].map(z => `<option value="${esc(z)}">`).join('')}</datalist>`;
   renderEq();
   renderTModal();
