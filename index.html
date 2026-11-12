@@ -144,6 +144,7 @@ body.has-dict .micw{display:flex}
 .annwrap{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:8px;background:#333}
 .annbot{background:var(--card);border-top:1px solid var(--line);padding:8px 10px calc(8px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
 .annrow{display:flex}.annrow input{flex:1;padding:9px 10px}
+.annbot [hidden]{display:none!important}
 .anncols{display:flex;justify-content:space-between}
 .anncols button.col{width:34px;height:34px;padding:0;border-radius:50%;border:2px solid var(--line)}
 .anncols button.col.on{outline:3px solid var(--acc);outline-offset:2px}
@@ -390,6 +391,7 @@ details.secd[open] > summary{margin-bottom:4px}
     <div class="annwrap"><canvas id="annCv"></canvas></div>
     <div class="annbot" id="annBot">
       <div class="annrow" id="annTxtRow" hidden><input type="text" id="annTxt" placeholder="Escribe el texto y toca la imagen donde va" autocomplete="off"></div>
+      <div class="annrow" id="annRadRow" hidden style="align-items:center;gap:10px"><span style="font-size:13px;color:var(--mut);white-space:nowrap">Radio esquinas</span><input type="range" id="annRad" min="2" max="50" value="22" style="flex:1;padding:0"></div>
       <div class="anncols"><button data-col="#e01b24" class="col on" style="background:#e01b24"></button><button data-col="#f6d32d" class="col" style="background:#f6d32d"></button><button data-col="#2ec27e" class="col" style="background:#2ec27e"></button><button data-col="#1c71d8" class="col" style="background:#1c71d8"></button><button data-col="#ffffff" class="col" style="background:#fff"></button><button data-col="#000000" class="col" style="background:#000"></button></div>
       <div class="annseg2"><div class="seg"><button data-w="0.5" title="Fino"><i style="height:2px"></i></button><button data-w="1" class="on" title="Medio"><i style="height:4px"></i></button><button data-w="1.8" title="Grueso"><i style="height:7px"></i></button></div>
         <div class="seg"><button data-dash="solid" class="on" title="Continua">───</button><button data-dash="dash" title="Segmentada">─ ─</button><button data-dash="dot" title="Punteada">· · ·</button></div></div>
@@ -415,7 +417,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 14:10</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 14:20</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -641,7 +643,7 @@ function annShapeXml(sh, k, W, id){
   const x = Math.min(sh.x1, sh.x2 ?? sh.x1), y = Math.min(sh.y1, sh.y2 ?? sh.y1), w = Math.abs((sh.x2 ?? sh.x1) - sh.x1), h = Math.abs((sh.y2 ?? sh.y1) - sh.y1);
   const pg = p => `<a:prstGeom prst="${p}"><a:avLst/></a:prstGeom>`;
   if (sh.t === 'rect') return wsp(x, y, w, h, pg('rect'), ln());
-  if (sh.t === 'rrect') return wsp(x, y, w, h, '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 22000"/></a:avLst></a:prstGeom>', ln());
+  if (sh.t === 'rrect') return wsp(x, y, w, h, `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${Math.round((sh.r ?? 0.22) * 100000)}"/></a:avLst></a:prstGeom>`, ln());
   if (sh.t === 'ellipse') return wsp(x, y, w, h, pg('ellipse'), ln());
   if (sh.t === 'line' || sh.t === 'arrow') {
     const fl = (sh.x2 < sh.x1 ? ' flipH="1"' : '') + (sh.y2 < sh.y1 ? ' flipV="1"' : '');
@@ -1453,7 +1455,7 @@ function annDraw(prev){
     ctx.shadowColor = s.c === '#000000' ? 'rgba(255,255,255,.7)' : 'rgba(0,0,0,.55)'; ctx.shadowBlur = lw;
     if (s.t === 'rect') ctx.strokeRect(Math.min(s.x1, s.x2), Math.min(s.y1, s.y2), Math.abs(s.x2 - s.x1), Math.abs(s.y2 - s.y1));
     else if (s.t === 'ellipse') { ctx.beginPath(); ctx.ellipse((s.x1 + s.x2) / 2, (s.y1 + s.y2) / 2, Math.abs(s.x2 - s.x1) / 2 || 1, Math.abs(s.y2 - s.y1) / 2 || 1, 0, 0, Math.PI * 2); ctx.stroke(); }
-    else if (s.t === 'rrect') { const x = Math.min(s.x1, s.x2), y = Math.min(s.y1, s.y2), w = Math.abs(s.x2 - s.x1), h = Math.abs(s.y2 - s.y1), r = Math.min(w, h) * 0.22;
+    else if (s.t === 'rrect') { const x = Math.min(s.x1, s.x2), y = Math.min(s.y1, s.y2), w = Math.abs(s.x2 - s.x1), h = Math.abs(s.y2 - s.y1), r = Math.min(w, h) * (s.r ?? 0.22);
       ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); ctx.stroke(); }
     else if (s.t === 'line') { ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); ctx.stroke(); }
     else if (s.t === 'free') { const pts = s.p || []; if (pts.length) { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); pts.forEach(q => ctx.lineTo(q[0], q[1])); ctx.stroke(); } }
@@ -1474,7 +1476,7 @@ function annOpen(key){
   const base = new Image();
   base.onload = () => {
     const cv = $('annCv'); cv.width = base.naturalWidth; cv.height = base.naturalHeight;
-    ann = { sel: -1, key, im, cv, ctx: cv.getContext('2d'), base, shapes: JSON.parse(JSON.stringify(im.ann || [])), tool: ann ? ann.tool : 'arrow', col: ann ? ann.col : '#e01b24', w: ann ? ann.w : 1, dash: ann ? ann.dash : 'solid', drag: null };
+    ann = { sel: -1, key, im, cv, ctx: cv.getContext('2d'), base, shapes: JSON.parse(JSON.stringify(im.ann || [])), tool: ann ? ann.tool : 'arrow', col: ann ? ann.col : '#e01b24', w: ann ? ann.w : 1, rad: ann ? ann.rad : 0.22, dash: ann ? ann.dash : 'solid', drag: null };
     $('annModal').hidden = false; document.body.classList.add('noscroll');
     $('annModal').querySelectorAll('[data-tool]').forEach(x => x.classList.toggle('on', x.dataset.tool === ann.tool)); $('annTxt').value = ''; annSelUI(); annRedraw();
   };
@@ -1495,6 +1497,8 @@ function annSelUI(){
   $('annDel').disabled = !s;
   $('annTxtRow').hidden = !(ann.tool === 'text' || (s && s.t === 'text'));
   if (s && s.t === 'text') $('annTxt').value = s.s;
+  $('annRadRow').hidden = !(ann.tool === 'rrect' || (s && s.t === 'rrect'));
+  $('annRad').value = Math.round(((s && s.t === 'rrect' ? s.r : ann.rad) ?? 0.22) * 100);
   const set = (attr, v) => $('annModal').querySelectorAll(`[${attr}]`).forEach(x => x.classList.toggle('on', x.getAttribute(attr) === String(v)));
   if (s) { set('data-col', s.c); set('data-w', s.w || 1); if (s.d || s.t !== 'text') set('data-dash', s.d || 'solid'); }
 }
@@ -1524,7 +1528,7 @@ $('annCv').addEventListener('pointerdown', e => {
       else { ann.shapes.push({ t: 'text', c: ann.col, w: ann.w, x1: p.x, y1: p.y, s: t }); ann.sel = ann.shapes.length - 1; annSelUI(); annRedraw(); return; }
     } else {
       ann.sel = -1;
-      const s = { t: ann.tool, c: ann.col, w: ann.w, d: ann.dash, x1: p.x, y1: p.y, x2: p.x, y2: p.y }; if (ann.tool === 'free') s.p = [[p.x, p.y]];
+      const s = { t: ann.tool, c: ann.col, w: ann.w, d: ann.dash, x1: p.x, y1: p.y, x2: p.x, y2: p.y }; if (ann.tool === 'free') s.p = [[p.x, p.y]]; if (ann.tool === 'rrect') s.r = ann.rad;
       ann.drag = { mode: 'new', isNew: true, s };
     }
   }
@@ -1545,6 +1549,7 @@ const annUp = () => {
   annRedraw();
 };
 $('annCv').addEventListener('pointerup', annUp); $('annCv').addEventListener('pointercancel', annUp);
+$('annRad').addEventListener('input', () => { if (!ann) return; const v = +$('annRad').value / 100, s = ann.shapes[ann.sel]; ann.rad = v; if (s && s.t === 'rrect') s.r = v; annRedraw(); });
 $('annTxt').addEventListener('input', () => { const s = ann && ann.shapes[ann.sel]; if (s && s.t === 'text') { s.s = $('annTxt').value || ' '; annRedraw(); } });
 ['annTools', 'annBot'].forEach(id => $(id).addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || !ann) return;
