@@ -118,6 +118,12 @@ body.has-dict .micw{display:flex}
 .cfold > summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px}
 .cfold > summary b{font-size:14px}
 .tnote{font-size:12px;color:var(--warn);margin-top:6px}
+.secx .stit{cursor:pointer;flex:1}
+.secx .stit::before{content:'▾ ';color:var(--mut)}
+.secx.pleg .stit::before{content:'▸ '}
+.secx .ssum{display:none;font-size:12px;margin-top:2px;cursor:pointer}
+.secx.pleg .ssum{display:block}
+.secx.pleg .secb{display:none}
 .tblx{margin-top:10px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px}
 .tblx .tscroll table{min-width:0}
 .tblx .tscroll table{width:100%;table-layout:fixed}
@@ -305,6 +311,7 @@ details.secd[open] > summary{margin-bottom:4px}
   <details class="card fold ef" data-ef="secs" open>
     <summary><span>5.0 Inspección</span><span class="muted" id="fs_secs"></span></summary>
     <div class="efb">
+    <div class="row" style="justify-content:flex-end;margin-bottom:4px"><button class="sm" id="secAll">Minimizar secciones</button></div>
     <div id="e_secs"></div>
     <button class="sm addb" id="addSec">+ Agregar sección</button>
     </div>
@@ -1197,8 +1204,21 @@ function efBtn(){ const b = $('efAll'); if (b) b.textContent = efs().some(d => d
 (() => { const o = LS.get('it_folds', null); if (o) efs().forEach(d => { if (o[d.dataset.ef] != null) d.open = !!o[d.dataset.ef]; }); efBtn(); })();
 document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('ef')) { efSave(); efBtn(); } }, true);
 $('efAll').onclick = () => { const any = efs().some(d => d.open); efs().forEach(d => d.open = !any); efSave(); efBtn(); };
-function openTo(el){ for (let d = el && el.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true; }
+function openTo(el){ const sx = el && el.closest && el.closest('.secx'); if (sx && sx.classList.contains('pleg')) { const i = [...$('e_secs').querySelectorAll(':scope > .secx')].indexOf(sx); if (draft.secciones[i]) draft.secciones[i].plegada = false; sx.classList.remove('pleg'); secAllBtn(); }
+  for (let d = el && el.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true; }
+function secSum(s){
+  const h = String(s.hallazgos || '').split('\n').filter(x => x.trim()).length, f = (s.fotos || []).length, t = (s.tablas || []).length;
+  return [h ? h + (h === 1 ? ' hallazgo' : ' hallazgos') : '', f + (f === 1 ? ' foto' : ' fotos'), t ? t + (t === 1 ? ' tabla' : ' tablas') : ''].filter(Boolean).join(' · ');
+}
+function secAllBtn(){ const b = $('secAll'); if (!b) return; b.hidden = draft.secciones.length < 2; b.textContent = draft.secciones.some(s => !s.plegada) ? 'Minimizar secciones' : 'Expandir secciones'; }
+$('secAll').onclick = () => { const any = draft.secciones.some(s => !s.plegada); draft.secciones.forEach(s => s.plegada = any); renderEditor(); touch(); };
+$('tab-editor').addEventListener('click', e => {
+  const el = e.target.closest && e.target.closest('[data-sfold]'); if (!el) return;
+  const i = +el.dataset.sfold, s = draft.secciones[i]; s.plegada = !s.plegada;
+  el.closest('.secx').classList.toggle('pleg', s.plegada); secAllBtn(); touch();
+});
 function renderFoldSums(){
+  secAllBtn();
   const set = (k, t) => { const e = $('fs_' + k); if (e) e.textContent = t; };
   const n = (x, a, b) => x + ' ' + (x === 1 ? a : b);
   const pr = s => String(s || '').split(/\n\s*\n/).filter(x => x.trim()).length;
@@ -1227,7 +1247,8 @@ function renderEditor(){
     <label>Hallazgo (resumen)</label><textarea data-rer="${i}:desc" placeholder="Descripción breve">${esc(r.desc)}</textarea>
     <div style="text-align:right;margin-top:6px"><button class="x" data-del="rer:${i}">Quitar RER</button></div></details>`).join('');
   let fn = 0;
-  $('e_secs').innerHTML = draft.secciones.map((s, i) => `<div class="sub"><div class="subh"><span>Sección ${i + 1}${secName(s) ? ' · ' + esc(secName(s)) : ''}</span><span><button class="x" data-up="${i}" style="color:var(--acc)">↑</button><button class="x" data-del="sec:${i}">Quitar</button></span></div>
+  $('e_secs').innerHTML = draft.secciones.map((s, i) => `<div class="sub secx${s.plegada ? ' pleg' : ''}"><div class="subh"><span data-sfold="${i}" class="stit">Sección ${i + 1}${secName(s) ? ' · ' + esc(secName(s)) : ''}</span><span><button class="x" data-up="${i}" style="color:var(--acc)">↑</button><button class="x" data-del="sec:${i}">Quitar</button></span></div>
+    <div class="ssum muted" data-sfold="${i}">${esc(secSum(s))}</div><div class="secb">
     <div class="grid"><div><label>Zona</label><input type="text" data-sec="${i}:zona" value="${esc(s.zona)}" placeholder="Ej: Hogar Bajo" list="zonasList"></div>
     <div><label>Componente</label><input type="text" data-sec="${i}:comp" value="${esc(s.comp)}" placeholder="Ej: Ductos de Caída de Biomasa"></div></div>
     ${nivUI(s, i)}
@@ -1237,7 +1258,7 @@ function renderEditor(){
     <div class="ocrst" id="ocrst_${i}"></div>
     <div class="row" style="margin-top:6px"><button class="sm addb" style="margin:0" data-tnew="${i}">+ Tabla manual</button>${sampleOk ? `<button class="sm addb" style="margin:0" data-ocr="${i}">Tabla desde foto (manuscrito)</button>` : ''}</div>
     <label>Fotografías</label><div class="thumbs">${s.fotos.map((f, k) => thumb(f.img, `foto:${i}:${k}`, `${i}:${k}`, f.cap, 'Fotografía N°' + (++fn))).join('')}</div>
-    <button class="sm addb" data-addimg="sec:${i}">+ Agregar fotos</button></div>`).join('') +
+    <button class="sm addb" data-addimg="sec:${i}">+ Agregar fotos</button></div></div>`).join('') +
     `<datalist id="zonasList">${[...new Set(draft.secciones.map(s => s.zona).filter(Boolean).concat(['Hogar Bajo','Hogar Alto','Sobrecalentador Primario','Sobrecalentador Secundario','Banco Generador','Economizador','Precalentador de Aire Primario']))].map(z => `<option value="${esc(z)}">`).join('')}</datalist>`;
   renderEq();
   addMics();
@@ -1338,6 +1359,7 @@ $('addRer').onclick = () => {
   draft.rer.push({ num: n, fecha: $('f_FECHA').value || '', comp: '', desc: '' }); openRer.add(draft.rer.length - 1); renderEditor(); touch();
 };
 $('addSec').onclick = () => {
+  draft.secciones.forEach(s => s.plegada = true);
   const last = draft.secciones[draft.secciones.length - 1];
   const ln = last ? nivArr(last) : [];
   draft.secciones.push({ zona: last ? last.zona : '', comp: last && ln.length ? last.comp : '', niv: ln.length ? ln.slice(0, -1).concat(['']) : [], rer: '', intro: '', hallazgos: '', fotos: [] }); renderEditor(); touch();
