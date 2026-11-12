@@ -419,7 +419,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 15:10</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 15:40</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -880,22 +880,41 @@ async function buildEditor(zip, draft, Parser, Serializer){
   if (fm && fm.img) {
     const nm = String(fm.nombre || '').trim().toLowerCase();
     const allP = [...doc.getElementsByTagName('w:p')];
-    const isEmpty = p => p && p.nodeName === 'w:p' && !txt(p).trim() && !p.getElementsByTagName('w:drawing').length;
+    const isEmpty = p => p && p.nodeName === 'w:p' && !txt(p).trim() && !p.getElementsByTagName('w:drawing').length && !p.getElementsByTagName('w:sectPr').length && !p.getElementsByTagName('w:pict').length;
     const iOf = n => allP.indexOf(n), recI = recEnd ? iOf(recEnd) : -1;
     const afterRec = p => iOf(p) > recI;
     const ip = centerImgP(fm.img, 5.5 * EMU_CM, 2.4 * EMU_CM, 'Firma', true);
     let ref = allP.filter(p => /\{\{\s*FIRMA\s*\}\}/.test(txt(p)) && afterRec(p)).pop();
     if (ref) ref.parentNode.replaceChild(ip, ref);
     else {
+      // bloque de firma justo después de las recomendaciones, centrado en la mitad derecha de la hoja
+      const blk = p => {
+        let pp = kids(p, 'w:pPr')[0]; if (!pp) { pp = doc.createElementNS(NS.w, 'w:pPr'); p.insertBefore(pp, p.firstChild); }
+        ['w:jc', 'w:ind', 'w:pageBreakBefore', 'w:numPr', 'w:keepNext'].forEach(t => kids(pp, t).forEach(n => pp.removeChild(n)));
+        const ind = doc.createElementNS(NS.w, 'w:ind'); ind.setAttribute('w:left', '4800'); ind.setAttribute('w:right', '0'); ind.setAttribute('w:firstLine', '0');
+        const jc = doc.createElementNS(NS.w, 'w:jc'); jc.setAttribute('w:val', 'center');
+        const kn = doc.createElementNS(NS.w, 'w:keepNext');
+        // orden del esquema: keepNext ... ind ... jc
+        const after = (tags) => { for (let n = pp.firstChild; n; n = n.nextSibling) if (tags.includes(n.nodeName)) return n; return null; };
+        const ps = kids(pp, 'w:pStyle')[0]; pp.insertBefore(kn, ps ? ps.nextSibling : pp.firstChild);
+        pp.insertBefore(ind, after(['w:contextualSpacing', 'w:mirrorIndents', 'w:suppressOverlap', 'w:jc', 'w:textDirection', 'w:textAlignment', 'w:textboxTightWrap', 'w:outlineLvl', 'w:divId', 'w:cnfStyle', 'w:rPr', 'w:sectPr', 'w:pPrChange']));
+        pp.insertBefore(jc, after(['w:textDirection', 'w:textAlignment', 'w:textboxTightWrap', 'w:outlineLvl', 'w:divId', 'w:cnfStyle', 'w:rPr', 'w:sectPr', 'w:pPrChange']));
+        return p;
+      };
       ref = allP.filter(p => afterRec(p) && (/\{\{\s*INSPECTOR(_MAY)?\s*\}\}/.test(txt(p)) || (nm && txt(p).toLowerCase().includes(nm)))).shift();
-      if (ref) { const pv = ref.previousSibling; if (isEmpty(pv)) pv.parentNode.replaceChild(ip, pv); else ref.parentNode.insertBefore(ip, ref); }
-      else {
-        // sin nombre en la plantilla: firma, nombre y cargo justo después de las recomendaciones
-        const cp = (t, it) => frag(doc, Parser, `<w:p><w:pPr><w:keepNext/><w:spacing w:after="0"/><w:jc w:val="center"/></w:pPr><w:r>${it ? '<w:rPr><w:i/></w:rPr>' : ''}<w:t xml:space="preserve">${xesc(t)}</w:t></w:r></w:p>`)[0];
-        const ns = [EMPTY(), EMPTY(), ip]; if (fm.nombre) ns.push(cp(fm.nombre)); if (fm.cargo) ns.push(cp(fm.cargo, true));
-        if (recEnd && recEnd.parentNode) insAfter(recEnd, ns);
-        else { const sp = kids(body, 'w:sectPr')[0]; ns.forEach(n => sp ? body.insertBefore(n, sp) : body.appendChild(n)); }
+      const ns = [EMPTY(), EMPTY(), blk(ip)];
+      if (ref && ref.parentNode === body) {
+        // se trae el nombre (y el cargo, si viene en la línea siguiente) de la plantilla
+        const cg = String(fm.cargo || '').trim().toLowerCase(); let nx = ref.nextSibling; while (nx && nx.nodeType !== 1) nx = nx.nextSibling;
+        const moveCargo = nx && nx.nodeName === 'w:p' && (/\{\{\s*CARGO/.test(txt(nx)) || (cg && txt(nx).toLowerCase().includes(cg)));
+        ns.push(blk(ref)); if (moveCargo) ns.push(blk(nx));
+      } else {
+        const cp = (t, it) => blk(frag(doc, Parser, `<w:p><w:pPr><w:spacing w:after="0"/></w:pPr><w:r>${it ? '<w:rPr><w:i/></w:rPr>' : ''}<w:t xml:space="preserve">${xesc(t)}</w:t></w:r></w:p>`)[0]);
+        if (fm.nombre) ns.push(cp(fm.nombre)); if (fm.cargo) ns.push(cp(fm.cargo, true));
       }
+      kids(ns[ns.length - 1], 'w:pPr').forEach(pp => kids(pp, 'w:keepNext').forEach(n => pp.removeChild(n)));
+      if (recEnd && recEnd.parentNode) insAfter(recEnd, ns);
+      else { const sp = kids(body, 'w:sectPr')[0]; ns.forEach(n => sp ? body.insertBefore(n, sp) : body.appendChild(n)); }
     }
     { // quitar párrafos vacíos al final (evitan una hoja extra solo con la firma)
       const sp = kids(body, 'w:sectPr')[0]; let n = sp ? sp.previousSibling : body.lastChild;
