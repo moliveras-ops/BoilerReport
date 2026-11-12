@@ -124,6 +124,16 @@ body.has-dict .micw{display:flex}
 .secx .ssum{display:none;font-size:12px;margin-top:2px;cursor:pointer}
 .secx.pleg .ssum{display:block}
 .secx.pleg .secb{display:none}
+.tmodal{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column}
+.tmodal[hidden]{display:none}
+.tmhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--card);border-bottom:1px solid var(--line);font-size:15px}
+.tmhead b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tmbody{flex:1;overflow:auto;padding:12px 12px 40px;max-width:720px;width:100%;margin:0 auto;box-sizing:border-box}
+body.noscroll{overflow:hidden}
+.tprev{cursor:pointer}
+.tpv{border-collapse:collapse;width:100%;margin-top:8px;font-size:13px;table-layout:fixed}
+.tpv th,.tpv td{border:1px solid var(--line);padding:5px 3px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tpv th{background:#eef2f7;font-weight:600}
 .tblx{margin-top:10px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px}
 .tblx .tscroll table{min-width:0}
 .tblx .tscroll table{width:100%;table-layout:fixed}
@@ -322,6 +332,7 @@ details.secd[open] > summary{margin-bottom:4px}
     <textarea id="e_rec" placeholder="Una recomendación por línea"></textarea>
     </div>
   </details>
+  <div id="tModal" class="tmodal" hidden><div class="tmhead"><b id="tmTitle">Tabla</b><button class="pri" id="tmClose" style="width:auto;padding:8px 18px">Listo</button></div><div class="tmbody" id="tmBody"></div></div>
   <button class="sm" id="clearDraft" style="width:100%;margin-bottom:12px">Nuevo informe (borrar borrador)</button>
   <input type="file" id="imgFile" accept="image/*" multiple hidden>
   <input type="file" id="ocrFile" accept="image/jpeg,image/png,image/webp" multiple hidden>
@@ -1213,6 +1224,8 @@ function secSum(s){
 function secAllBtn(){ const b = $('secAll'); if (!b) return; b.hidden = draft.secciones.length < 2; b.textContent = draft.secciones.some(s => !s.plegada) ? 'Minimizar secciones' : 'Expandir secciones'; }
 $('secAll').onclick = () => { const any = draft.secciones.some(s => !s.plegada); draft.secciones.forEach(s => s.plegada = any); renderEditor(); touch(); };
 $('tab-editor').addEventListener('click', e => {
+  const tp = e.target.closest && e.target.closest('[data-topen]'); if (tp) { const [i, k] = tp.dataset.topen.split(':').map(Number); openTabla(i, k); return; }
+  if (e.target.id === 'tmClose') { closeTabla(); return; }
   const el = e.target.closest && e.target.closest('[data-sfold]'); if (!el) return;
   const i = +el.dataset.sfold, s = draft.secciones[i]; s.plegada = !s.plegada;
   el.closest('.secx').classList.toggle('pleg', s.plegada); secAllBtn(); touch();
@@ -1254,13 +1267,14 @@ function renderEditor(){
     ${nivUI(s, i)}
     <label>Texto de la sección (opcional)</label><textarea data-sec="${i}:intro" placeholder="Si lo dejas vacío se usa el texto tipo: “Según lo definido en el plan de inspección preventivo programado…”">${esc(s.intro)}</textarea>
     <label>Hallazgos (uno por línea)</label><textarea data-sec="${i}:hallazgos">${esc(s.hallazgos)}</textarea>
-    <label>Tablas</label>${(s.tablas || []).map((t, k) => tablaUI(i, k, t)).join('')}
+    <label>Tablas</label>${(s.tablas || []).map((t, k) => tablaPrev(i, k, t)).join('')}
     <div class="ocrst" id="ocrst_${i}"></div>
     <div class="row" style="margin-top:6px"><button class="sm addb" style="margin:0" data-tnew="${i}">+ Tabla manual</button>${sampleOk ? `<button class="sm addb" style="margin:0" data-ocr="${i}">Tabla desde foto (manuscrito)</button>` : ''}</div>
     <label>Fotografías</label><div class="thumbs">${s.fotos.map((f, k) => thumb(f.img, `foto:${i}:${k}`, `${i}:${k}`, f.cap, 'Fotografía N°' + (++fn))).join('')}</div>
     <button class="sm addb" data-addimg="sec:${i}">+ Agregar fotos</button></div></div>`).join('') +
     `<datalist id="zonasList">${[...new Set(draft.secciones.map(s => s.zona).filter(Boolean).concat(['Hogar Bajo','Hogar Alto','Sobrecalentador Primario','Sobrecalentador Secundario','Banco Generador','Economizador','Precalentador de Aire Primario']))].map(z => `<option value="${esc(z)}">`).join('')}</datalist>`;
   renderEq();
+  renderTModal();
   addMics();
   if (dictTarget && dictTarget.key) { const b = document.querySelector(`[data-tmic="${dictTarget.key}"]`); if (b) { dictBtn = b; if (dict && dict.active()) setMicUI(true); } else stopDict(); }
 }
@@ -1527,7 +1541,7 @@ function autoNum(t){
 }
 function tablaUI(i, k, t){
   const d = new Set(t.dudas || []), nc = numCols(t);
-  return `<details class="tblx tblf" data-tfold="${i}:${k}" ${t.plegada ? '' : 'open'}><summary><span>📋 ${esc(t.titulo || 'Tabla sin título')}</span><span class="muted" id="ts_${i}_${k}">${esc(tblSum(t))}</span></summary>
+  return `<div class="tblx" style="border:0;padding:0;margin:0"><div class="muted" style="font-size:12px;margin-bottom:6px" id="ts_${i}_${k}">${esc(tblSum(t))}</div>
     <div class="subh"><input type="text" data-tt="${i}:${k}" value="${esc(t.titulo || '')}" placeholder="Título de la tabla" style="padding:7px 9px;font-size:13px"></div>
     <div class="tscroll" style="margin-top:6px"><table style="min-width:${t.cols.length * 104 + 30}px"><tr>${t.cols.map((c, j) => `<th><input type="text" data-tc="${i}:${k}:${j}" value="${esc(c)}"></th>`).join('')}<th class="del"></th></tr>
     ${t.rows.map((r, ri) => `<tr>${r.map((v, j) => `<td class="${d.has(ri + ':' + j) ? 'dud' : ''}"><input type="text" data-tv="${i}:${k}:${ri}:${j}" value="${esc(v)}" enterkeyhint="next" ${nc.includes(j) || (j === 0 && isPtCol(t.cols[0])) ? 'inputmode="decimal"' : ''} ${cellStyle(t, v, j)}></td>`).join('')}<td class="del"><button class="x" style="padding:4px 2px" data-trdel="${i}:${k}:${ri}">✕</button></td></tr>`).join('')}</table></div>
@@ -1537,8 +1551,40 @@ function tablaUI(i, k, t){
     <div class="tacts"><button class="sm" data-trow="${i}:${k}">+ Fila</button><span class="partial"></span><button type="button" class="sm mic micT" data-tmic="${i}:${k}" data-lbl="Dictar valores">${MIC_SVG}Dictar valores</button><button class="sm" data-tpaste="${i}:${k}">Pegar desde Excel</button></div>
     ${colorUI(i, k, t)}
     <label>Texto después de la tabla (opcional)</label><textarea data-tdesp="${i}:${k}" placeholder="Un párrafo por línea. Empieza con “-” para viñetas.">${esc(t.despues || '')}</textarea>
-    <div class="tacts"><button class="sm" data-tcol="${i}:${k}">+ Columna</button><button class="sm" data-tcsv="${i}:${k}">CSV</button><button class="x" data-tdel="${i}:${k}">Quitar tabla</button></div></details>`;
+    <div class="tacts"><button class="sm" data-tcol="${i}:${k}">+ Columna</button><button class="sm" data-tcsv="${i}:${k}">CSV</button><button class="x" data-tdel="${i}:${k}">Quitar tabla</button></div></div>`;
 }
+// vista previa en la sección: tocarla abre la tabla en una ventana
+function tablaPrev(i, k, t){
+  const MAX = 6, rows = t.rows.filter(r => r.some(v => String(v || '').trim())), d = (t.dudas || []).length;
+  const cell = (v, j, h) => { const st = h ? '' : (/style="([^"]*)"/.exec(cellStyle(t, v, j)) || [])[1] || ''; return `<${h ? 'th' : 'td'} style="${st}">${esc(v || '')}</${h ? 'th' : 'td'}>`; };
+  return `<div class="tblx tprev" data-topen="${i}:${k}"><div class="subh"><span>📋 ${esc(t.titulo || 'Tabla sin título')}</span><span class="muted" style="font-weight:400;font-size:12px">${esc(tblSum(t))}</span></div>
+    ${rows.length ? `<table class="tpv"><tr>${t.cols.map((c, j) => cell(c, j, true)).join('')}</tr>${rows.slice(0, MAX).map(r => `<tr>${r.map((v, j) => cell(v, j)).join('')}</tr>`).join('')}</table>${rows.length > MAX ? `<div class="muted" style="font-size:12px;margin-top:4px">… y ${rows.length - MAX} fila(s) más</div>` : ''}` : '<div class="muted" style="font-size:13px;margin-top:6px">Sin valores todavía.</div>'}
+    ${d ? `<div class="tnote">⚠ ${d} celda(s) dudosa(s) por revisar</div>` : ''}
+    <button class="sm" style="width:100%;margin-top:8px;font-weight:600;color:var(--acc);border-color:var(--acc)">✏️ Abrir tabla</button></div>`;
+}
+let tModal = null;
+function openTabla(i, k){
+  tModal = [i, k]; $('tModal').hidden = false; document.body.classList.add('noscroll');
+  try { history.pushState({ tmodal: 1 }, ''); } catch(e){}
+  renderTModal();
+  const t = draft.secciones[i].tablas[k];
+  if (!t.rows.some(x => x.some(v => String(v || '').trim()))) focusCell(i, k, 0, valCol(t));
+}
+function closeTabla(fromPop){
+  if (!tModal) return; tModal = null; $('tModal').hidden = true; $('tmBody').innerHTML = ''; document.body.classList.remove('noscroll');
+  if (!fromPop) { try { if (history.state && history.state.tmodal) history.back(); } catch(e){} }
+  renderEditor();
+}
+function renderTModal(){
+  if (!tModal) return;
+  const [i, k] = tModal, s = draft.secciones[i], t = s && (s.tablas || [])[k];
+  if (!t) { closeTabla(); return; }
+  const sc = $('tmBody').scrollTop;
+  $('tmTitle').textContent = (t.titulo || 'Tabla') + (secName(s) ? ' · ' + secName(s) : '');
+  $('tmBody').innerHTML = tablaUI(i, k, t);
+  $('tmBody').scrollTop = sc;
+}
+window.addEventListener('popstate', () => { if (tModal) closeTabla(true); });
 function tblRefreshSum(i, k){ const e = $(`ts_${i}_${k}`); if (e) e.textContent = tblSum(draft.secciones[i].tablas[k]); renderFoldSums(); }
 function focusCell(i, k, r, j){ const el = document.querySelector(`[data-tv="${i}:${k}:${r}:${j}"]`); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); } }
 // pegar una grilla (Excel/Sheets: tabulaciones y saltos de línea) desde la celda r,j
@@ -1590,7 +1636,7 @@ tabEd.addEventListener('input', e => {
 tabEd.addEventListener('click', async e => {
   const d = e.target.dataset;
   const T = s => { const [i, k] = s.split(':'); return draft.secciones[+i].tablas[+k]; };
-  if (d.tnew != null) { const s = draft.secciones[+d.tnew]; const t = { titulo: 'Mediciones de espesores', cols: ['Punto', 'Espesor (mm)'], rows: [['', ''], ['', ''], ['', '']], dudas: [] }; t.color = newColor(s, t); t.color.cols = [1]; (s.tablas = s.tablas || []).push(t); }
+  if (d.tnew != null) { const s = draft.secciones[+d.tnew]; const t = { titulo: 'Mediciones de espesores', cols: ['Punto', 'Espesor (mm)'], rows: [['', ''], ['', ''], ['', '']], dudas: [] }; t.color = newColor(s, t); t.color.cols = [1]; (s.tablas = s.tablas || []).push(t); renderEditor(); touch(); openTabla(+d.tnew, s.tablas.length - 1); return; }
   else if (d.trow) { const t = T(d.trow); t.rows.push(t.cols.map(() => '')); const [i, k] = d.trow.split(':'); renderEditor(); touch(); focusCell(+i, +k, t.rows.length - 1, valCol(t)); return; }
   else if (d.tpaste) { const [i, k] = d.tpaste.split(':').map(Number); const t = T(d.tpaste);
     try { const txt = await navigator.clipboard.readText(); if (!txt.trim()) throw 0; const r0 = t.rows.findIndex(x => !x.some(v => String(v || '').trim())); pasteGrid(i, k, r0 < 0 ? t.rows.length : r0, 0, txt); }
@@ -1598,7 +1644,7 @@ tabEd.addEventListener('click', async e => {
     return; }
   else if (d.tcol) { const t = T(d.tcol); t.cols.push(''); t.rows.forEach(r => r.push('')); }
   else if (d.trdel) { const [i, k, r] = d.trdel.split(':'); const t = draft.secciones[+i].tablas[+k]; t.rows.splice(+r, 1); t.dudas = (t.dudas || []).filter(x => +x.split(':')[0] !== +r).map(x => { const [a, b] = x.split(':'); return (+a > +r ? +a - 1 : +a) + ':' + b; }); }
-  else if (d.tdel) { if (!confirmInline(e.target)) return; const [i, k] = d.tdel.split(':'); draft.secciones[+i].tablas.splice(+k, 1); }
+  else if (d.tdel) { if (!confirmInline(e.target)) return; const [i, k] = d.tdel.split(':'); draft.secciones[+i].tablas.splice(+k, 1); if (tModal) { tModal = null; $('tModal').hidden = true; $('tmBody').innerHTML = ''; document.body.classList.remove('noscroll'); try { if (history.state && history.state.tmodal) history.back(); } catch(err){} } }
   else if (d.tcsv) { const t = T(d.tcsv); const q = v => /[;"\n]/.test(v) ? '"' + String(v).replace(/"/g, '""') + '"' : v;
     const csv = '\ufeff' + [t.cols].concat(t.rows).map(r => r.map(v => q(v || '')).join(';')).join('\r\n');
     await save((t.titulo || 'tabla').replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '').trim().replace(/\s+/g, '_') + '.csv', csv); return; }
