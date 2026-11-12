@@ -134,6 +134,16 @@ body.has-dict .micw{display:flex}
 .spi .ch{display:flex;flex-wrap:wrap;gap:6px}
 .spi .ch button.sg{color:var(--acc);border-color:var(--acc);font-weight:600}
 .firmaPrev img{max-width:220px;max-height:90px;display:block;background:#fff;border:1px dashed var(--line);border-radius:6px;padding:4px}
+.fdraw{position:fixed;inset:0;z-index:30;background:var(--bg);display:flex;flex-direction:column;padding:10px 10px calc(10px + env(safe-area-inset-bottom))}
+.fdraw[hidden]{display:none}
+.fdraw .fdh{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.fdraw .fdh b{font-size:16px}
+.fdraw .fdc{flex:1;position:relative;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;min-height:180px}
+.fdraw canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.fdraw .fdl{position:absolute;left:8%;right:8%;bottom:38%;border-bottom:1px dashed #b8c2cf;pointer-events:none}
+.fdraw .fdb{display:flex;gap:6px;margin-top:8px}
+.fdraw .fdb button{flex:1}
+.fdraw .fdb button.pri{flex:2;padding:12px}
 .thumb{position:relative}
 .annb{position:absolute;top:6px;right:6px;padding:4px 8px;font-size:12px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid var(--line);color:var(--acc);font-weight:600}
 .thumb img[data-ann]{cursor:pointer}
@@ -288,8 +298,13 @@ details.secd[open] > summary{margin-bottom:4px}
   <section class="card">
     <h2>Inspector y firma</h2>
     <div id="firmaPrev" class="firmaPrev"></div>
-    <div class="row" style="margin-top:6px"><button class="sm" id="firmaLoad" type="button">Cargar imagen de firma</button><button class="x" id="firmaDel" type="button" hidden>Quitar</button></div>
+    <div class="row" style="margin-top:6px"><button class="sm" id="firmaDraw" type="button">Dibujar firma</button><button class="sm" id="firmaLoad" type="button">Cargar imagen</button><button class="x" id="firmaDel" type="button" hidden>Quitar</button></div>
     <input type="file" id="firmaFile" accept="image/*" hidden>
+    <div id="fdraw" class="fdraw" hidden>
+      <div class="fdh"><b>Dibuja tu firma</b><span class="muted" style="font-size:12px">Gira el teléfono para más espacio</span></div>
+      <div class="fdc" id="fdc"><div class="fdl"></div><canvas id="fdCv"></canvas></div>
+      <div class="fdb"><button type="button" id="fdCancel">Cancelar</button><button type="button" id="fdUndo">Deshacer</button><button type="button" id="fdClear">Borrar</button><button type="button" class="pri" id="fdOk">Guardar</button></div>
+    </div>
     <div class="grid"><div><label for="firmaNom">Inspector</label><input type="text" id="firmaNom" placeholder="Ej: Marcelo Oliveras Olea" autocomplete="off"></div>
     <div><label for="firmaCar">Cargo</label><input type="text" id="firmaCar" placeholder="Ej: Ingeniero Evaluador iqs company" autocomplete="off"></div></div>
     <p class="muted" style="font-size:12px;margin:6px 0 0">La firma se pone sobre tu nombre al final del informe (o donde la plantilla tenga {{FIRMA}}). En tu plantilla Word puedes escribir {{INSPECTOR}} y {{CARGO}} donde quieras que aparezcan estos datos. Si la plantilla no trae tu nombre, se agregan firma, nombre y cargo al final. Se guarda solo en este dispositivo; el fondo blanco de la foto se quita solo.</p>
@@ -1469,6 +1484,45 @@ $('firmaFile').onchange = e => {
   im.src = url;
 };
 renderFirma();
+// ---- dibujar firma (S Pen / dedo) ----
+(() => {
+  const ov = $('fdraw'), cv = $('fdCv'), box = $('fdc');
+  let strokes = [], cur = null, dpr = 1;
+  const ctx = () => cv.getContext('2d');
+  const fit = () => { dpr = window.devicePixelRatio || 1; const r = box.getBoundingClientRect(); cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); draw(); };
+  const seg = (x, a, b) => { // grosor según presión del lápiz
+    const w = 1.2 + 2.6 * (a.p + b.p) / 2;
+    x.lineWidth = w * dpr; x.beginPath(); x.moveTo(a.x * dpr, a.y * dpr); x.lineTo(b.x * dpr, b.y * dpr); x.stroke();
+  };
+  const paint = (x, st) => { if (st.length === 1) { x.beginPath(); x.arc(st[0].x * dpr, st[0].y * dpr, 1.6 * dpr, 0, 7); x.fill(); } for (let i = 1; i < st.length; i++) seg(x, st[i - 1], st[i]); };
+  function draw(){ const x = ctx(); x.clearRect(0, 0, cv.width, cv.height); x.strokeStyle = x.fillStyle = '#10204a'; x.lineCap = x.lineJoin = 'round'; strokes.forEach(st => paint(x, st)); }
+  const pt = e => { const r = cv.getBoundingClientRect(); const p = e.pointerType === 'mouse' || !e.pressure ? 0.5 : e.pressure; return { x: e.clientX - r.left, y: e.clientY - r.top, p }; };
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); cv.setPointerCapture(e.pointerId); cur = [pt(e)]; strokes.push(cur); draw(); });
+  cv.addEventListener('pointermove', e => { if (!cur) return; e.preventDefault();
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e]; const x = ctx(); x.strokeStyle = '#10204a'; x.lineCap = 'round';
+    (evs.length ? evs : [e]).forEach(ev => { const q = pt(ev); seg(x, cur[cur.length - 1], q); cur.push(q); }); });
+  const end = () => { cur = null; };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end); cv.addEventListener('pointerleave', end);
+  const close = () => { ov.hidden = true; document.body.style.overflow = ''; window.removeEventListener('resize', fit); };
+  $('firmaDraw').onclick = () => { strokes = []; ov.hidden = false; document.body.style.overflow = 'hidden'; requestAnimationFrame(fit); window.addEventListener('resize', fit); };
+  $('fdCancel').onclick = close;
+  $('fdUndo').onclick = () => { strokes.pop(); draw(); };
+  $('fdClear').onclick = () => { strokes = []; draw(); };
+  $('fdOk').onclick = () => {
+    if (!strokes.length) { close(); return; }
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    strokes.flat().forEach(q => { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); });
+    const pd = 8, w = x1 - x0 + 2 * pd, h = y1 - y0 + 2 * pd, sc = Math.min(3, 700 / w);
+    const out = document.createElement('canvas'); out.width = Math.max(1, Math.round(w * sc)); out.height = Math.max(1, Math.round(h * sc));
+    const x = out.getContext('2d'); x.strokeStyle = x.fillStyle = '#10204a'; x.lineCap = x.lineJoin = 'round';
+    const tr = st => st.map(q => ({ x: (q.x - x0 + pd) * sc, y: (q.y - y0 + pd) * sc, p: q.p }));
+    strokes.forEach(st => { const s2 = tr(st);
+      if (s2.length === 1) { x.beginPath(); x.arc(s2[0].x, s2[0].y, 1.6 * sc, 0, 7); x.fill(); }
+      for (let i = 1; i < s2.length; i++) { x.lineWidth = (1.2 + 2.6 * (s2[i - 1].p + s2[i].p) / 2) * sc; x.beginPath(); x.moveTo(s2[i - 1].x, s2[i - 1].y); x.lineTo(s2[i].x, s2[i].y); x.stroke(); } });
+    firmaSet({ img: { d: out.toDataURL('image/png'), w: out.width, h: out.height } });
+    close();
+  };
+})();
 // ---- cuadros de texto que crecen con el contenido ----
 const AUTO_FS = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('field-sizing', 'content');
 function autoH(ta){ if (AUTO_FS || !ta || ta.tagName !== 'TEXTAREA' || !ta.offsetParent) return; ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 2) + 'px'; }
