@@ -65,7 +65,7 @@ code{font:500 12px "IBM Plex Mono",monospace;background:var(--acc2);color:var(--
 .tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;max-width:720px;margin:0 auto;padding:6px 8px;background:var(--bg)}
 .tabs button{flex:1;border-radius:8px;padding:8px 4px;font-weight:600;font-size:14px}
 .tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
-textarea{width:100%;min-height:80px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font:inherit;resize:vertical}
+textarea{field-sizing:content;max-height:none;overflow:hidden;width:100%;min-height:80px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font:inherit;resize:vertical}
 .sub{border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;background:#fafbfd}
 .subh{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:600;font-size:14px}
 .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:8px}
@@ -380,7 +380,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 13:05</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 13:10</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -1341,6 +1341,14 @@ $('firmaFile').onchange = e => {
   im.src = url;
 };
 renderFirma();
+// ---- cuadros de texto que crecen con el contenido ----
+const AUTO_FS = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('field-sizing', 'content');
+function autoH(ta){ if (AUTO_FS || !ta || ta.tagName !== 'TEXTAREA' || !ta.offsetParent) return; ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 2) + 'px'; }
+function autoAll(){ if (!AUTO_FS) document.querySelectorAll('textarea').forEach(autoH); }
+document.addEventListener('input', e => autoH(e.target));
+document.addEventListener('toggle', () => setTimeout(autoAll, 0), true);
+document.addEventListener('click', e => { if (e.target.closest('[data-tab], #hdrDatos, [data-sfold], #efAll')) setTimeout(autoAll, 0); });
+window.addEventListener('resize', () => setTimeout(autoAll, 50));
 // ---- dictado por voz ----
 let dict = null, dictTarget = null, dictBtn = null;
 const MIC_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>';
@@ -1500,6 +1508,7 @@ function renderEditor(){
   renderTModal();
   try { renderEdDatos(); } catch(e) {}
   addMics();
+  setTimeout(() => { try { autoAll(); } catch(e) {} }, 0);
   if (dictTarget && dictTarget.key) { const b = document.querySelector(`[data-tmic="${dictTarget.key}"]`); if (b) { dictBtn = b; if (dict && dict.active()) setMicUI(true); } else stopDict(); }
 }
 
