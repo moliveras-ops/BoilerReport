@@ -260,13 +260,13 @@ details.secd[open] > summary{margin-bottom:4px}
   </section>
 
   <section class="card">
-    <h2>Firma</h2>
+    <h2>Inspector y firma</h2>
     <div id="firmaPrev" class="firmaPrev"></div>
     <div class="row" style="margin-top:6px"><button class="sm" id="firmaLoad" type="button">Cargar imagen de firma</button><button class="x" id="firmaDel" type="button" hidden>Quitar</button></div>
     <input type="file" id="firmaFile" accept="image/*" hidden>
-    <div class="grid"><div><label for="firmaNom">Nombre</label><input type="text" id="firmaNom" placeholder="Ej: Marcelo Oliveras Olea" autocomplete="off"></div>
+    <div class="grid"><div><label for="firmaNom">Inspector</label><input type="text" id="firmaNom" placeholder="Ej: Marcelo Oliveras Olea" autocomplete="off"></div>
     <div><label for="firmaCar">Cargo</label><input type="text" id="firmaCar" placeholder="Ej: Ingeniero Evaluador iqs company" autocomplete="off"></div></div>
-    <p class="muted" style="font-size:12px;margin:6px 0 0">La firma se pone sobre tu nombre al final del informe (o donde la plantilla tenga {{FIRMA}}). Si la plantilla no trae tu nombre, se agregan firma, nombre y cargo al final. Se guarda solo en este dispositivo; el fondo blanco de la foto se quita solo.</p>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">La firma se pone sobre tu nombre al final del informe (o donde la plantilla tenga {{FIRMA}}). En tu plantilla Word puedes escribir {{INSPECTOR}} y {{CARGO}} donde quieras que aparezcan estos datos. Si la plantilla no trae tu nombre, se agregan firma, nombre y cargo al final. Se guarda solo en este dispositivo; el fondo blanco de la foto se quita solo.</p>
   </section>
 
   <section class="card">
@@ -380,7 +380,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 13:10</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 13:20</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -783,7 +783,7 @@ async function buildEditor(zip, draft, Parser, Serializer){
     let ref = allP.filter(p => /\{\{\s*FIRMA\s*\}\}/.test(txt(p))).pop();
     if (ref) { const ip = centerImgP(fm.img, 5.5 * EMU_CM, 2.4 * EMU_CM, 'Firma', true); ref.parentNode.replaceChild(ip, ref); }
     else {
-      ref = nm ? allP.filter(p => txt(p).toLowerCase().includes(nm)).pop() : null;
+      ref = allP.filter(p => /\{\{\s*INSPECTOR(_MAY)?\s*\}\}/.test(txt(p))).pop() || (nm ? allP.filter(p => txt(p).toLowerCase().includes(nm)).pop() : null);
       const ip = centerImgP(fm.img, 5.5 * EMU_CM, 2.4 * EMU_CM, 'Firma', true);
       if (ref) { const pv = ref.previousSibling; if (isEmpty(pv)) pv.parentNode.replaceChild(ip, pv); else ref.parentNode.insertBefore(ip, ref); }
       else {
@@ -867,7 +867,7 @@ async function hasEditorSlots(zip, Parser){
 if (typeof module !== 'undefined') module.exports.buildEditor = buildEditor, module.exports.hasEditorSlots = hasEditorSlots;
 
 const BASE = ['OT','TAG','EQUIPO','PALABRA','FECHA','CLIENTE'];
-const AUTO = ['MES','ANIO','MMAA'];
+const AUTO = ['MES','ANIO','MMAA','INSPECTOR','CARGO','FIRMA'];
 const isKnown = k => BASE.includes(k) || AUTO.includes(k) || /_MAY$/.test(k);
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const FN_DEFAULT = 'Inf_N_{OT}-{MMAA}-{CORRELATIVO}_Inspeccion_{EQUIPO}_{PARADA}_{PLANTA}_{MES}_{ANIO}';
@@ -1048,6 +1048,7 @@ function collect(){
   document.querySelectorAll('[data-key]').forEach(i => v[i.dataset.key] = i.value.trim());
   const iso = $('f_FECHA').value;
   v.FECHA = fmtFecha(iso);
+  { const fm = LS.get('it_firma', {}) || {}; v.INSPECTOR = (fm.nombre || '').trim(); v.CARGO = (fm.cargo || '').trim(); v.FIRMA = ''; }
   v.CLIENTE = $('cliente').value;
   if (iso) { const [y,m] = iso.split('-'); v.MES = MESES[+m-1]; v.ANIO = y; v.MMAA = m + y.slice(2); }
   const keys = new Set([...(tpl ? tpl.found : []), ...Object.keys(v)]);
@@ -1282,7 +1283,7 @@ $('spBody').addEventListener('click', e => {
   if (!$('spBody').querySelector('.spi')) $('spBody').innerHTML = '<p style="color:var(--ok);font-size:15px">✓ Revisión terminada.</p>' + spDicHtml();
 });
 // ---- datos del informe dentro del Editor (espejo de 📋 Datos) ----
-const ED_MIR = ['cliente', 'f_OT', 'x_CORRELATIVO', 'f_EQUIPO', 'f_TAG', 'x_PLANTA', 'f_PALABRA', 'f_FECHA'];
+const ED_MIR = ['cliente', 'f_OT', 'x_CORRELATIVO', 'f_EQUIPO', 'f_TAG', 'x_PLANTA', 'f_PALABRA', 'f_FECHA', 'firmaNom', 'firmaCar'];
 function edDatosSum(){ const e = $('fs_datos'); if (e) e.textContent = infName(getDatos()); }
 function renderEdDatos(){
   const g = $('edDatosG'); if (!g) return;
