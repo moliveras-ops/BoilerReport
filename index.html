@@ -142,6 +142,8 @@ body.has-dict .micw{display:flex}
 .anntop button span{font-size:18px;line-height:1.1}
 .anntop button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .annwrap{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:8px;background:#333}
+.annwrap{position:relative}
+#annPen{position:absolute;top:8px;left:8px;z-index:2;padding:5px 10px;font-size:12px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid var(--line);color:var(--acc);font-weight:600}
 .annbot{background:var(--card);border-top:1px solid var(--line);padding:8px 10px calc(8px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
 .annrow{display:flex}.annrow input{flex:1;padding:9px 10px}
 .annbot [hidden]{display:none!important}
@@ -388,9 +390,9 @@ details.secd[open] > summary{margin-bottom:4px}
     <div class="anntop" id="annTools">
       <button data-tool="select" title="Mover y editar"><span>☝</span>Mover</button><button data-tool="arrow" class="on" title="Flecha"><span>➜</span>Flecha</button><button data-tool="line" title="Línea"><span>╱</span>Línea</button><button data-tool="ellipse" title="Círculo"><span>◯</span>Círculo</button><button data-tool="rect" title="Rectángulo"><span>▭</span>Rect.</button><button data-tool="rrect" title="Rectángulo redondeado"><span>▢</span>Redond.</button><button data-tool="free" title="Lápiz"><span>✎</span>Lápiz</button><button data-tool="text" title="Texto"><span>T</span>Texto</button>
     </div>
-    <div class="annwrap"><canvas id="annCv"></canvas></div>
+    <div class="annwrap"><button type="button" id="annPen" hidden></button><canvas id="annCv"></canvas></div>
     <div class="annbot" id="annBot">
-      <div class="annrow" id="annTxtRow" hidden><input type="text" id="annTxt" placeholder="Escribe el texto y toca la imagen donde va" autocomplete="off"></div>
+      <div class="annrow" id="annTxtRow" hidden><input type="text" id="annTxt" placeholder="Escribe aquí (o a mano con el S Pen) y toca la imagen" autocomplete="off"></div>
       <div class="annrow" id="annRadRow" hidden style="align-items:center;gap:10px"><span style="font-size:13px;color:var(--mut);white-space:nowrap">Radio esquinas</span><input type="range" id="annRad" min="2" max="50" value="22" style="flex:1;padding:0"></div>
       <div class="anncols"><button data-col="#e01b24" class="col on" style="background:#e01b24"></button><button data-col="#f6d32d" class="col" style="background:#f6d32d"></button><button data-col="#2ec27e" class="col" style="background:#2ec27e"></button><button data-col="#1c71d8" class="col" style="background:#1c71d8"></button><button data-col="#ffffff" class="col" style="background:#fff"></button><button data-col="#000000" class="col" style="background:#000"></button></div>
       <div class="annseg2"><div class="seg"><button data-w="0.5" title="Fino"><i style="height:2px"></i></button><button data-w="1" class="on" title="Medio"><i style="height:4px"></i></button><button data-w="1.8" title="Grueso"><i style="height:7px"></i></button></div>
@@ -417,7 +419,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 14:20</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 14:35</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -1476,9 +1478,9 @@ function annOpen(key){
   const base = new Image();
   base.onload = () => {
     const cv = $('annCv'); cv.width = base.naturalWidth; cv.height = base.naturalHeight;
-    ann = { sel: -1, key, im, cv, ctx: cv.getContext('2d'), base, shapes: JSON.parse(JSON.stringify(im.ann || [])), tool: ann ? ann.tool : 'arrow', col: ann ? ann.col : '#e01b24', w: ann ? ann.w : 1, rad: ann ? ann.rad : 0.22, dash: ann ? ann.dash : 'solid', drag: null };
+    ann = { sel: -1, penSeen: ann ? ann.penSeen : false, penOnly: ann ? ann.penOnly : null, key, im, cv, ctx: cv.getContext('2d'), base, shapes: JSON.parse(JSON.stringify(im.ann || [])), tool: ann ? ann.tool : 'arrow', col: ann ? ann.col : '#e01b24', w: ann ? ann.w : 1, rad: ann ? ann.rad : 0.22, dash: ann ? ann.dash : 'solid', drag: null };
     $('annModal').hidden = false; document.body.classList.add('noscroll');
-    $('annModal').querySelectorAll('[data-tool]').forEach(x => x.classList.toggle('on', x.dataset.tool === ann.tool)); $('annTxt').value = ''; annSelUI(); annRedraw();
+    $('annModal').querySelectorAll('[data-tool]').forEach(x => x.classList.toggle('on', x.dataset.tool === ann.tool)); $('annTxt').value = ''; annSelUI(); annPenUI(); annRedraw();
   };
   base.src = im.orig || im.d;
 }
@@ -1512,7 +1514,17 @@ function annRedraw(){
   c.restore();
 }
 $('annCv').addEventListener('pointerdown', e => {
-  if (!ann) return; e.preventDefault(); const p = annPt(e), hr = annLw0() * 4;
+  if (!ann) return; e.preventDefault();
+  // S Pen: al detectar el lápiz, el dedo/palma deja de dibujar (se puede cambiar con el botón "Solo lápiz")
+  if (e.pointerType === 'pen' && !ann.penSeen) { ann.penSeen = true; if (ann.penOnly == null) ann.penOnly = LS.get('it_penOnly', true); annPenUI(); }
+  if (e.pointerType === 'touch' && ann.penSeen && ann.penOnly) return;
+  if (ann.drag) return;
+  const sideBtn = e.pointerType === 'pen' && (e.buttons & 2);
+  const tool0 = ann.tool; if (sideBtn) ann.tool = 'select';
+  try { annDown(e); } finally { if (sideBtn) ann.tool = tool0; }
+});
+function annDown(e){
+  const p = annPt(e), hr = annLw0() * 4;
   const cur = ann.shapes[ann.sel];
   if (cur) {
     if (annHasH(cur) && Math.hypot(p.x - cur.x1, p.y - cur.y1) < hr) ann.drag = { mode: 'h1' };
@@ -1532,12 +1544,12 @@ $('annCv').addEventListener('pointerdown', e => {
       ann.drag = { mode: 'new', isNew: true, s };
     }
   }
-  if (ann.drag) { ann.drag.lx = p.x; ann.drag.ly = p.y; $('annCv').setPointerCapture(e.pointerId); }
+  if (ann.drag) { ann.drag.lx = p.x; ann.drag.ly = p.y; ann.drag.pid = e.pointerId; try { $('annCv').setPointerCapture(e.pointerId); } catch(_) {} }
   annRedraw();
-});
+}
 $('annCv').addEventListener('pointermove', e => {
-  if (!ann || !ann.drag) return; const p = annPt(e), d = ann.drag, dx = p.x - d.lx, dy = p.y - d.ly; d.lx = p.x; d.ly = p.y;
-  if (d.mode === 'new') { d.s.x2 = p.x; d.s.y2 = p.y; if (d.s.p) d.s.p.push([Math.round(p.x), Math.round(p.y)]); }
+  if (!ann || !ann.drag || (ann.drag.pid != null && e.pointerId !== ann.drag.pid)) return; const p = annPt(e), d = ann.drag, dx = p.x - d.lx, dy = p.y - d.ly; d.lx = p.x; d.ly = p.y;
+  if (d.mode === 'new') { d.s.x2 = p.x; d.s.y2 = p.y; if (d.s.p) ((e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e]).forEach(ce => { const q = annPt(ce); d.s.p.push([Math.round(q.x), Math.round(q.y)]); }); }
   else { const s = ann.shapes[ann.sel]; if (!s) return;
     if (d.mode === 'h1') { s.x1 = p.x; s.y1 = p.y; } else if (d.mode === 'h2') { s.x2 = p.x; s.y2 = p.y; }
     else { s.x1 += dx; s.y1 += dy; if (s.x2 != null) { s.x2 += dx; s.y2 += dy; } if (s.p) s.p = s.p.map(q => [q[0] + dx, q[1] + dy]); } }
@@ -1545,6 +1557,7 @@ $('annCv').addEventListener('pointermove', e => {
 });
 const annUp = () => {
   if (!ann || !ann.drag) return; const d = ann.drag; ann.drag = null;
+  if (d.mode === 'new' && d.s.p) { const t = Math.max(1.5, annLw0() * 0.35), o = [d.s.p[0]]; d.s.p.forEach(q => { const l = o[o.length - 1]; if (Math.hypot(q[0] - l[0], q[1] - l[1]) >= t) o.push(q); }); const last = d.s.p[d.s.p.length - 1]; if (o[o.length - 1] !== last) o.push(last); d.s.p = o; }
   if (d.mode === 'new') { const s = d.s; if (s.p ? s.p.length > 2 : Math.hypot(s.x2 - s.x1, s.y2 - s.y1) > ann.cv.width / 60) { ann.shapes.push(s); ann.sel = ann.shapes.length - 1; } annSelUI(); }
   annRedraw();
 };
@@ -1564,6 +1577,8 @@ $('annTxt').addEventListener('input', () => { const s = ann && ann.shapes[ann.se
   else if (b.id === 'annClear') { ann.shapes = []; ann.sel = -1; annSelUI(); }
   annRedraw();
 }));
+function annPenUI(){ const b = $('annPen'); b.hidden = !ann || !ann.penSeen; if (!b.hidden) b.textContent = ann.penOnly ? '✒ Solo S Pen (el dedo no dibuja)' : '✒ S Pen y dedo'; }
+$('annPen').onclick = () => { ann.penOnly = !ann.penOnly; LS.set('it_penOnly', ann.penOnly); annPenUI(); };
 $('annCancel').onclick = annClose;
 $('annOk').onclick = () => {
   const { im, cv, shapes } = ann;
