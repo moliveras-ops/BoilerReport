@@ -394,9 +394,9 @@ details.secd[open] > summary{margin-bottom:4px}
     <div class="annbot" id="annBot">
       <div class="annrow" id="annTxtRow" hidden><input type="text" id="annTxt" placeholder="Escribe aquí (o a mano con el S Pen) y toca la imagen" autocomplete="off"></div>
       <div class="annrow" id="annRadRow" hidden style="align-items:center;gap:10px"><span style="font-size:13px;color:var(--mut);white-space:nowrap">Radio esquinas</span><input type="range" id="annRad" min="2" max="50" value="22" style="flex:1;padding:0"></div>
-      <div class="anncols"><button data-col="#e01b24" class="col on" style="background:#e01b24"></button><button data-col="#f6d32d" class="col" style="background:#f6d32d"></button><button data-col="#2ec27e" class="col" style="background:#2ec27e"></button><button data-col="#1c71d8" class="col" style="background:#1c71d8"></button><button data-col="#ffffff" class="col" style="background:#fff"></button><button data-col="#000000" class="col" style="background:#000"></button></div>
-      <div class="annseg2"><div class="seg"><button data-w="0.5" title="Fino"><i style="height:2px"></i></button><button data-w="1" class="on" title="Medio"><i style="height:4px"></i></button><button data-w="1.8" title="Grueso"><i style="height:7px"></i></button></div>
-        <div class="seg"><button data-dash="solid" class="on" title="Continua">───</button><button data-dash="dash" title="Segmentada">─ ─</button><button data-dash="dot" title="Punteada">· · ·</button></div></div>
+      <div class="anncols"><button data-col="#e01b24" class="col" style="background:#e01b24"></button><button data-col="#f6d32d" class="col on" style="background:#f6d32d"></button><button data-col="#2ec27e" class="col" style="background:#2ec27e"></button><button data-col="#1c71d8" class="col" style="background:#1c71d8"></button><button data-col="#ffffff" class="col" style="background:#fff"></button><button data-col="#000000" class="col" style="background:#000"></button></div>
+      <div class="annseg2"><div class="seg"><button data-w="0.5" class="on" title="Fino"><i style="height:2px"></i></button><button data-w="1" title="Medio"><i style="height:4px"></i></button><button data-w="1.8" title="Grueso"><i style="height:7px"></i></button></div>
+        <div class="seg"><button data-dash="solid" title="Continua">───</button><button data-dash="dash" class="on" title="Segmentada">─ ─</button><button data-dash="dot" title="Punteada">· · ·</button></div></div>
       <div class="annacts"><button id="annUndo">↶ Deshacer</button><button id="annDel" disabled>🗑 Eliminar forma</button><button id="annClear">Borrar todo</button></div>
     </div></div>
   <div id="tModal" class="tmodal" hidden><div class="tmhead"><b id="tmTitle">Tabla</b><button class="pri" id="tmClose" style="width:auto;padding:8px 18px">Listo</button></div><div class="tmbody" id="tmBody"></div></div>
@@ -419,7 +419,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 14:35</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 14:40</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -1473,12 +1473,15 @@ function annDraw(prev){
     ctx.restore();
   });
 }
+// estándar al abrir: amarillo, fino, segmentado (se cambia con las opciones de edición)
+const ANN_DEF = { col: '#f6d32d', w: 0.5, dash: 'dash' };
 function annOpen(key){
   const im = annImg(key); if (!im) return;
   const base = new Image();
   base.onload = () => {
     const cv = $('annCv'); cv.width = base.naturalWidth; cv.height = base.naturalHeight;
-    ann = { sel: -1, penSeen: ann ? ann.penSeen : false, penOnly: ann ? ann.penOnly : null, key, im, cv, ctx: cv.getContext('2d'), base, shapes: JSON.parse(JSON.stringify(im.ann || [])), tool: ann ? ann.tool : 'arrow', col: ann ? ann.col : '#e01b24', w: ann ? ann.w : 1, rad: ann ? ann.rad : 0.22, dash: ann ? ann.dash : 'solid', drag: null };
+    ann = { sel: -1, penSeen: ann ? ann.penSeen : false, penOnly: ann ? ann.penOnly : null, key, im, cv, ctx: cv.getContext('2d'), base, shapes: JSON.parse(JSON.stringify(im.ann || [])), tool: ann ? ann.tool : 'arrow', col: ANN_DEF.col, w: ANN_DEF.w, rad: 0.22, dash: ANN_DEF.dash, drag: null };
+    ['data-col', 'data-w', 'data-dash'].forEach((at, i) => $('annModal').querySelectorAll(`[${at}]`).forEach(x => x.classList.toggle('on', x.getAttribute(at) === String([ANN_DEF.col, ANN_DEF.w, ANN_DEF.dash][i]))));
     $('annModal').hidden = false; document.body.classList.add('noscroll');
     $('annModal').querySelectorAll('[data-tool]').forEach(x => x.classList.toggle('on', x.dataset.tool === ann.tool)); $('annTxt').value = ''; annSelUI(); annPenUI(); annRedraw();
   };
