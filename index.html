@@ -137,16 +137,25 @@ body.has-dict .micw{display:flex}
 .thumb{position:relative}
 .annb{position:absolute;top:6px;right:6px;padding:4px 8px;font-size:12px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid var(--line);color:var(--acc);font-weight:600}
 .thumb img[data-ann]{cursor:pointer}
-.anntools{background:var(--card);border-bottom:1px solid var(--line);padding:6px 8px;display:flex;flex-direction:column;gap:6px}
-.annrow{display:flex;gap:6px;align-items:center;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
-.annrow > *{flex-shrink:0}
-.annl{font-size:11px;color:var(--mut);text-transform:uppercase;margin-left:4px}
-.annrow button{padding:6px 10px;font-size:13px}
-.annrow button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
-.annrow button.col{width:30px;height:30px;padding:0;border-radius:50%;border:2px solid var(--line)}
-.annrow button.col.on{outline:3px solid var(--acc);outline-offset:2px;background-clip:padding-box}
-.annrow input{flex:1;flex-shrink:1;padding:8px 10px}
-.annwrap{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:10px;background:#333}
+.anntop{background:var(--card);border-bottom:1px solid var(--line);padding:6px;display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+.anntop button{display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0;font-size:10px;border-radius:8px;min-width:0}
+.anntop button span{font-size:18px;line-height:1.1}
+.anntop button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.annwrap{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:8px;background:#333}
+.annbot{background:var(--card);border-top:1px solid var(--line);padding:8px 10px calc(8px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
+.annrow{display:flex}.annrow input{flex:1;padding:9px 10px}
+.anncols{display:flex;justify-content:space-between}
+.anncols button.col{width:34px;height:34px;padding:0;border-radius:50%;border:2px solid var(--line)}
+.anncols button.col.on{outline:3px solid var(--acc);outline-offset:2px}
+.annseg2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{flex:1;border:0;border-radius:0;padding:8px 0;font-size:13px;display:flex;align-items:center;justify-content:center;background:#fff}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button i{display:block;width:22px;background:currentColor;border-radius:2px}
+.seg button.on{background:var(--acc);color:#fff}
+.annacts{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:6px}
+.annacts button{padding:8px 4px;font-size:13px}
+#annDel{color:var(--err)}#annDel:disabled{opacity:.4}
 #annCv{max-width:100%;touch-action:none;background:#000}
 .blk{border-top:1px dashed var(--line);margin-top:12px;padding-top:8px}
 .tmodal{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column}
@@ -375,14 +384,17 @@ details.secd[open] > summary{margin-bottom:4px}
   </details>
   <div id="spModal" class="tmodal" hidden><div class="tmhead"><b>Ortografía</b><button class="pri" id="spClose" style="width:auto;padding:8px 18px">Listo</button></div><div class="tmbody" id="spBody"></div></div>
   <div id="annModal" class="tmodal" hidden><div class="tmhead"><button class="sm" id="annCancel">Cancelar</button><b>Señalar en la imagen</b><button class="pri" id="annOk" style="width:auto;padding:8px 18px">Listo</button></div>
-    <div class="anntools" id="annTools">
-      <div class="annrow"><button data-tool="select">☝ Mover</button><button data-tool="arrow" class="on">➜ Flecha</button><button data-tool="line">╱ Línea</button><button data-tool="ellipse">◯ Círculo</button><button data-tool="rect">▭ Rectángulo</button><button data-tool="rrect">▢ Redondeado</button><button data-tool="free">✎ Lápiz</button><button data-tool="text">T Texto</button></div>
-      <div class="annrow"><button data-col="#e01b24" class="col on" style="background:#e01b24"></button><button data-col="#f6d32d" class="col" style="background:#f6d32d"></button><button data-col="#2ec27e" class="col" style="background:#2ec27e"></button><button data-col="#1c71d8" class="col" style="background:#1c71d8"></button><button data-col="#ffffff" class="col" style="background:#fff"></button><button data-col="#000000" class="col" style="background:#000"></button></div>
-      <div class="annrow"><span class="annl">Grosor</span><button data-w="0.5">Fino</button><button data-w="1" class="on">Medio</button><button data-w="1.8">Grueso</button><span class="annl">Línea</span><button data-dash="solid" class="on">───</button><button data-dash="dash">─ ─</button><button data-dash="dot">···</button></div>
-      <div class="annrow"><button id="annUndo">↶ Deshacer</button><button id="annDel" hidden style="color:var(--err)">🗑 Eliminar forma</button><button id="annClear">Borrar todo</button><span class="annl" style="text-transform:none">Toca una forma para moverla o cambiarla</span></div>
-      <div class="annrow" id="annTxtRow" hidden><input type="text" id="annTxt" placeholder="Escribe el texto y toca la imagen donde va" autocomplete="off"></div>
+    <div class="anntop" id="annTools">
+      <button data-tool="select" title="Mover y editar"><span>☝</span>Mover</button><button data-tool="arrow" class="on" title="Flecha"><span>➜</span>Flecha</button><button data-tool="line" title="Línea"><span>╱</span>Línea</button><button data-tool="ellipse" title="Círculo"><span>◯</span>Círculo</button><button data-tool="rect" title="Rectángulo"><span>▭</span>Rect.</button><button data-tool="rrect" title="Rectángulo redondeado"><span>▢</span>Redond.</button><button data-tool="free" title="Lápiz"><span>✎</span>Lápiz</button><button data-tool="text" title="Texto"><span>T</span>Texto</button>
     </div>
-    <div class="annwrap"><canvas id="annCv"></canvas></div></div>
+    <div class="annwrap"><canvas id="annCv"></canvas></div>
+    <div class="annbot" id="annBot">
+      <div class="annrow" id="annTxtRow" hidden><input type="text" id="annTxt" placeholder="Escribe el texto y toca la imagen donde va" autocomplete="off"></div>
+      <div class="anncols"><button data-col="#e01b24" class="col on" style="background:#e01b24"></button><button data-col="#f6d32d" class="col" style="background:#f6d32d"></button><button data-col="#2ec27e" class="col" style="background:#2ec27e"></button><button data-col="#1c71d8" class="col" style="background:#1c71d8"></button><button data-col="#ffffff" class="col" style="background:#fff"></button><button data-col="#000000" class="col" style="background:#000"></button></div>
+      <div class="annseg2"><div class="seg"><button data-w="0.5" title="Fino"><i style="height:2px"></i></button><button data-w="1" class="on" title="Medio"><i style="height:4px"></i></button><button data-w="1.8" title="Grueso"><i style="height:7px"></i></button></div>
+        <div class="seg"><button data-dash="solid" class="on" title="Continua">───</button><button data-dash="dash" title="Segmentada">─ ─</button><button data-dash="dot" title="Punteada">· · ·</button></div></div>
+      <div class="annacts"><button id="annUndo">↶ Deshacer</button><button id="annDel" disabled>🗑 Eliminar forma</button><button id="annClear">Borrar todo</button></div>
+    </div></div>
   <div id="tModal" class="tmodal" hidden><div class="tmhead"><b id="tmTitle">Tabla</b><button class="pri" id="tmClose" style="width:auto;padding:8px 18px">Listo</button></div><div class="tmbody" id="tmBody"></div></div>
   <button class="sm" id="clearDraft" style="width:100%;margin-bottom:12px">Nuevo informe (borrar borrador)</button>
   <input type="file" id="imgFile" accept="image/*" multiple hidden>
@@ -403,7 +415,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 14:00</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 14:10</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -1464,7 +1476,7 @@ function annOpen(key){
     const cv = $('annCv'); cv.width = base.naturalWidth; cv.height = base.naturalHeight;
     ann = { sel: -1, key, im, cv, ctx: cv.getContext('2d'), base, shapes: JSON.parse(JSON.stringify(im.ann || [])), tool: ann ? ann.tool : 'arrow', col: ann ? ann.col : '#e01b24', w: ann ? ann.w : 1, dash: ann ? ann.dash : 'solid', drag: null };
     $('annModal').hidden = false; document.body.classList.add('noscroll');
-    $('annTools').querySelectorAll('[data-tool]').forEach(x => x.classList.toggle('on', x.dataset.tool === ann.tool)); $('annTxt').value = ''; annSelUI(); annRedraw();
+    $('annModal').querySelectorAll('[data-tool]').forEach(x => x.classList.toggle('on', x.dataset.tool === ann.tool)); $('annTxt').value = ''; annSelUI(); annRedraw();
   };
   base.src = im.orig || im.d;
 }
@@ -1480,10 +1492,10 @@ const annHasH = s => s.t !== 'free' && s.t !== 'text';
 function annHit(p){ const t = annLw0() * 3; for (let i = ann.shapes.length - 1; i >= 0; i--) { const b = annBox(ann.shapes[i]); if (p.x > b[0] - t && p.x < b[2] + t && p.y > b[1] - t && p.y < b[3] + t) return i; } return -1; }
 function annSelUI(){
   const s = ann.shapes[ann.sel];
-  $('annDel').hidden = !s;
+  $('annDel').disabled = !s;
   $('annTxtRow').hidden = !(ann.tool === 'text' || (s && s.t === 'text'));
   if (s && s.t === 'text') $('annTxt').value = s.s;
-  const set = (attr, v) => $('annTools').querySelectorAll(`[${attr}]`).forEach(x => x.classList.toggle('on', x.getAttribute(attr) === String(v)));
+  const set = (attr, v) => $('annModal').querySelectorAll(`[${attr}]`).forEach(x => x.classList.toggle('on', x.getAttribute(attr) === String(v)));
   if (s) { set('data-col', s.c); set('data-w', s.w || 1); if (s.d || s.t !== 'text') set('data-dash', s.d || 'solid'); }
 }
 function annRedraw(){
@@ -1534,10 +1546,10 @@ const annUp = () => {
 };
 $('annCv').addEventListener('pointerup', annUp); $('annCv').addEventListener('pointercancel', annUp);
 $('annTxt').addEventListener('input', () => { const s = ann && ann.shapes[ann.sel]; if (s && s.t === 'text') { s.s = $('annTxt').value || ' '; annRedraw(); } });
-$('annTools').addEventListener('click', e => {
+['annTools', 'annBot'].forEach(id => $(id).addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || !ann) return;
   const s = ann.shapes[ann.sel];
-  const on = attr => $('annTools').querySelectorAll(`[${attr}]`).forEach(x => x.classList.toggle('on', x === b));
+  const on = attr => $('annModal').querySelectorAll(`[${attr}]`).forEach(x => x.classList.toggle('on', x === b));
   if (b.dataset.tool) { ann.tool = b.dataset.tool; on('data-tool'); if (ann.tool !== 'select') ann.sel = -1; annSelUI(); if (ann.tool === 'text') { $('annTxt').value = ''; $('annTxt').focus(); } }
   else if (b.dataset.w) { ann.w = +b.dataset.w; on('data-w'); if (s) s.w = ann.w; }
   else if (b.dataset.dash) { ann.dash = b.dataset.dash; on('data-dash'); if (s && s.t !== 'text') s.d = ann.dash; }
@@ -1546,7 +1558,7 @@ $('annTools').addEventListener('click', e => {
   else if (b.id === 'annUndo') { ann.shapes.pop(); ann.sel = -1; annSelUI(); }
   else if (b.id === 'annClear') { ann.shapes = []; ann.sel = -1; annSelUI(); }
   annRedraw();
-});
+}));
 $('annCancel').onclick = annClose;
 $('annOk').onclick = () => {
   const { im, cv, shapes } = ann;
