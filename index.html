@@ -276,6 +276,10 @@ details.secd[open] > summary{margin-bottom:4px}
 
 <div id="tab-editor" hidden>
   <div class="efbar"><p class="saved" id="savedTxt"></p><button class="sm" id="spBtn">Ortografía</button><button class="sm" id="efAll">Minimizar todo</button></div>
+  <details class="card fold ef" data-ef="datos" id="edDatos">
+    <summary><span>Datos del informe</span><span class="muted" id="fs_datos"></span></summary>
+    <div class="efb"><div class="grid" id="edDatosG"></div><p class="muted" style="font-size:12px;margin:6px 0 0">Son los mismos datos de 📋 Datos. El nombre del informe se arma con OT, equipo, planta y cliente.</p></div>
+  </details>
   <details class="card fold ef" data-ef="intro" open>
     <summary><span>1.0 Introducción</span><span class="muted" id="fs_intro"></span></summary>
     <div class="efb">
@@ -364,7 +368,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 12:05</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 12:10</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -1114,6 +1118,7 @@ function showTab(t){
   [...$('tabs').children].forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   $('hdrDatos').classList.toggle('on', t === 'datos');
   if (t === 'campos') renderChk();
+  if (t === 'editor') renderEdDatos();
   window.scrollTo(0, 0);
 }
 
@@ -1237,6 +1242,29 @@ $('spBody').addEventListener('click', e => {
   box.remove();
   if (!$('spBody').querySelector('.spi')) $('spBody').innerHTML = '<p style="color:var(--ok);font-size:15px">✓ Revisión terminada.</p>';
 });
+// ---- datos del informe dentro del Editor (espejo de 📋 Datos) ----
+const ED_MIR = ['cliente', 'f_OT', 'x_CORRELATIVO', 'f_EQUIPO', 'f_TAG', 'x_PLANTA', 'f_PALABRA', 'f_FECHA'];
+function edDatosSum(){ const e = $('fs_datos'); if (e) e.textContent = infName(getDatos()); }
+function renderEdDatos(){
+  const g = $('edDatosG'); if (!g) return;
+  g.innerHTML = ED_MIR.filter(id => $(id)).map(id => {
+    const o = $(id), lb = (document.querySelector(`label[for="${id}"]`) || {}).textContent || (id === 'cliente' ? 'Cliente' : id);
+    const ctl = o.tagName === 'SELECT'
+      ? `<select data-mir="${id}">${[...o.options].map(op => `<option value="${esc(op.value)}" ${op.value === o.value ? 'selected' : ''}>${esc(op.textContent)}</option>`).join('')}</select>`
+      : `<input type="${o.type}" data-mir="${id}" value="${esc(o.value)}" autocomplete="off">`;
+    return `<div><label>${esc(lb)}</label>${ctl}</div>`;
+  }).join('');
+  edDatosSum();
+}
+['input', 'change'].forEach(ev => $('edDatosG').addEventListener(ev, e => {
+  e.stopPropagation();
+  const id = e.target.dataset.mir, o = id && $(id); if (!o) return;
+  if (o.value === e.target.value && ev === 'change') return;
+  o.value = e.target.value;
+  o.dispatchEvent(new Event(o.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+  if (o.type === 'date') o.dispatchEvent(new Event('change', { bubbles: true }));
+  edDatosSum();
+}));
 // ---- dictado por voz ----
 let dict = null, dictTarget = null, dictBtn = null;
 const MIC_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>';
@@ -1394,6 +1422,7 @@ function renderEditor(){
     `<datalist id="zonasList">${[...new Set(draft.secciones.map(s => s.zona).filter(Boolean).concat(['Hogar Bajo','Hogar Alto','Sobrecalentador Primario','Sobrecalentador Secundario','Banco Generador','Economizador','Precalentador de Aire Primario']))].map(z => `<option value="${esc(z)}">`).join('')}</datalist>`;
   renderEq();
   renderTModal();
+  try { renderEdDatos(); } catch(e) {}
   addMics();
   if (dictTarget && dictTarget.key) { const b = document.querySelector(`[data-tmic="${dictTarget.key}"]`); if (b) { dictBtn = b; if (dict && dict.active()) setMicUI(true); } else stopDict(); }
 }
