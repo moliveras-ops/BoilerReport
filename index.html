@@ -138,12 +138,14 @@ body.has-dict .micw{display:flex}
 .annb{position:absolute;top:6px;right:6px;padding:4px 8px;font-size:12px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid var(--line);color:var(--acc);font-weight:600}
 .thumb img[data-ann]{cursor:pointer}
 .anntools{background:var(--card);border-bottom:1px solid var(--line);padding:6px 8px;display:flex;flex-direction:column;gap:6px}
-.annrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.annrow button{padding:7px 10px;font-size:13px}
+.annrow{display:flex;gap:6px;align-items:center;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+.annrow > *{flex-shrink:0}
+.annl{font-size:11px;color:var(--mut);text-transform:uppercase;margin-left:4px}
+.annrow button{padding:6px 10px;font-size:13px}
 .annrow button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .annrow button.col{width:30px;height:30px;padding:0;border-radius:50%;border:2px solid var(--line)}
 .annrow button.col.on{outline:3px solid var(--acc);outline-offset:2px;background-clip:padding-box}
-.annrow input{flex:1;padding:8px 10px}
+.annrow input{flex:1;flex-shrink:1;padding:8px 10px}
 .annwrap{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:10px;background:#333}
 #annCv{max-width:100%;touch-action:none;background:#000}
 .blk{border-top:1px dashed var(--line);margin-top:12px;padding-top:8px}
@@ -374,8 +376,10 @@ details.secd[open] > summary{margin-bottom:4px}
   <div id="spModal" class="tmodal" hidden><div class="tmhead"><b>Ortografía</b><button class="pri" id="spClose" style="width:auto;padding:8px 18px">Listo</button></div><div class="tmbody" id="spBody"></div></div>
   <div id="annModal" class="tmodal" hidden><div class="tmhead"><button class="sm" id="annCancel">Cancelar</button><b>Señalar en la imagen</b><button class="pri" id="annOk" style="width:auto;padding:8px 18px">Listo</button></div>
     <div class="anntools" id="annTools">
-      <div class="annrow"><button data-tool="arrow" class="on">➜ Flecha</button><button data-tool="ellipse">◯ Círculo</button><button data-tool="rect">▭ Rectángulo</button><button data-tool="text">T Texto</button></div>
-      <div class="annrow"><button data-col="#e01b24" class="col on" style="background:#e01b24"></button><button data-col="#f6d32d" class="col" style="background:#f6d32d"></button><button data-col="#ffffff" class="col" style="background:#fff"></button><button data-col="#1c71d8" class="col" style="background:#1c71d8"></button><button data-col="#000000" class="col" style="background:#000"></button><span style="flex:1"></span><button id="annUndo">↶ Deshacer</button><button id="annClear">Borrar todo</button></div>
+      <div class="annrow"><button data-tool="select">☝ Mover</button><button data-tool="arrow" class="on">➜ Flecha</button><button data-tool="line">╱ Línea</button><button data-tool="ellipse">◯ Círculo</button><button data-tool="rect">▭ Rectángulo</button><button data-tool="rrect">▢ Redondeado</button><button data-tool="free">✎ Lápiz</button><button data-tool="text">T Texto</button></div>
+      <div class="annrow"><button data-col="#e01b24" class="col on" style="background:#e01b24"></button><button data-col="#f6d32d" class="col" style="background:#f6d32d"></button><button data-col="#2ec27e" class="col" style="background:#2ec27e"></button><button data-col="#1c71d8" class="col" style="background:#1c71d8"></button><button data-col="#ffffff" class="col" style="background:#fff"></button><button data-col="#000000" class="col" style="background:#000"></button></div>
+      <div class="annrow"><span class="annl">Grosor</span><button data-w="0.5">Fino</button><button data-w="1" class="on">Medio</button><button data-w="1.8">Grueso</button><span class="annl">Línea</span><button data-dash="solid" class="on">───</button><button data-dash="dash">─ ─</button><button data-dash="dot">···</button></div>
+      <div class="annrow"><button id="annUndo">↶ Deshacer</button><button id="annDel" hidden style="color:var(--err)">🗑 Eliminar forma</button><button id="annClear">Borrar todo</button><span class="annl" style="text-transform:none">Toca una forma para moverla o cambiarla</span></div>
       <div class="annrow" id="annTxtRow" hidden><input type="text" id="annTxt" placeholder="Escribe el texto y toca la imagen donde va" autocomplete="off"></div>
     </div>
     <div class="annwrap"><canvas id="annCv"></canvas></div></div>
@@ -399,7 +403,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 13:30</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 13:45</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -791,7 +795,8 @@ async function buildEditor(zip, draft, Parser, Serializer){
   }
   // 7. Recomendaciones
   const recs = lines(draft.recomendaciones);
-  if (recPh && recs.length) { insAfter(recPh, recs.map(t => B(t))); recPh.parentNode.removeChild(recPh); }
+  let recEnd = recPh || hRec;
+  if (recPh && recs.length) { recEnd = insAfter(recPh, recs.map(t => B(t))); recPh.parentNode.removeChild(recPh); }
 
   // 8. Firma (imagen sobre el nombre del firmante)
   const fm = draft._firma;
@@ -799,18 +804,25 @@ async function buildEditor(zip, draft, Parser, Serializer){
     const nm = String(fm.nombre || '').trim().toLowerCase();
     const allP = [...doc.getElementsByTagName('w:p')];
     const isEmpty = p => p && p.nodeName === 'w:p' && !txt(p).trim() && !p.getElementsByTagName('w:drawing').length;
-    let ref = allP.filter(p => /\{\{\s*FIRMA\s*\}\}/.test(txt(p))).pop();
-    if (ref) { const ip = centerImgP(fm.img, 5.5 * EMU_CM, 2.4 * EMU_CM, 'Firma', true); ref.parentNode.replaceChild(ip, ref); }
+    const iOf = n => allP.indexOf(n), recI = recEnd ? iOf(recEnd) : -1;
+    const afterRec = p => iOf(p) > recI;
+    const ip = centerImgP(fm.img, 5.5 * EMU_CM, 2.4 * EMU_CM, 'Firma', true);
+    let ref = allP.filter(p => /\{\{\s*FIRMA\s*\}\}/.test(txt(p)) && afterRec(p)).pop();
+    if (ref) ref.parentNode.replaceChild(ip, ref);
     else {
-      ref = allP.filter(p => /\{\{\s*INSPECTOR(_MAY)?\s*\}\}/.test(txt(p))).pop() || (nm ? allP.filter(p => txt(p).toLowerCase().includes(nm)).pop() : null);
-      const ip = centerImgP(fm.img, 5.5 * EMU_CM, 2.4 * EMU_CM, 'Firma', true);
+      ref = allP.filter(p => afterRec(p) && (/\{\{\s*INSPECTOR(_MAY)?\s*\}\}/.test(txt(p)) || (nm && txt(p).toLowerCase().includes(nm)))).shift();
       if (ref) { const pv = ref.previousSibling; if (isEmpty(pv)) pv.parentNode.replaceChild(ip, pv); else ref.parentNode.insertBefore(ip, ref); }
       else {
-        const cp = (t, it) => frag(doc, Parser, `<w:p><w:pPr><w:spacing w:after="0"/><w:jc w:val="center"/></w:pPr><w:r>${it ? '<w:rPr><w:i/></w:rPr>' : ''}<w:t xml:space="preserve">${xesc(t)}</w:t></w:r></w:p>`)[0];
-        const ns = [EMPTY(), ip]; if (fm.nombre) ns.push(cp(fm.nombre)); if (fm.cargo) ns.push(cp(fm.cargo, true));
-        const sp = kids(body, 'w:sectPr')[0];
-        ns.forEach(n => sp ? body.insertBefore(n, sp) : body.appendChild(n));
+        // sin nombre en la plantilla: firma, nombre y cargo justo después de las recomendaciones
+        const cp = (t, it) => frag(doc, Parser, `<w:p><w:pPr><w:keepNext/><w:spacing w:after="0"/><w:jc w:val="center"/></w:pPr><w:r>${it ? '<w:rPr><w:i/></w:rPr>' : ''}<w:t xml:space="preserve">${xesc(t)}</w:t></w:r></w:p>`)[0];
+        const ns = [EMPTY(), EMPTY(), ip]; if (fm.nombre) ns.push(cp(fm.nombre)); if (fm.cargo) ns.push(cp(fm.cargo, true));
+        if (recEnd && recEnd.parentNode) insAfter(recEnd, ns);
+        else { const sp = kids(body, 'w:sectPr')[0]; ns.forEach(n => sp ? body.insertBefore(n, sp) : body.appendChild(n)); }
       }
+    }
+    { // quitar párrafos vacíos al final (evitan una hoja extra solo con la firma)
+      const sp = kids(body, 'w:sectPr')[0]; let n = sp ? sp.previousSibling : body.lastChild;
+      while (n && isEmpty(n)) { const pv = n.previousSibling; n.parentNode.removeChild(n); n = pv; }
     }
     report.push('firma');
   }
@@ -1382,18 +1394,24 @@ function annDraw(prev){
   const { cv, ctx, base, shapes } = ann;
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.drawImage(base, 0, 0, cv.width, cv.height);
-  const lw = Math.max(4, Math.round(cv.width / 140));
+  const lw0 = Math.max(4, Math.round(cv.width / 140));
   shapes.concat(prev ? [prev] : []).forEach(s => {
-    ctx.save(); ctx.strokeStyle = ctx.fillStyle = s.c; ctx.lineWidth = lw; ctx.lineCap = ctx.lineJoin = 'round';
+    const lw = Math.max(2, lw0 * (s.w || 1));
+    ctx.save(); ctx.strokeStyle = ctx.fillStyle = s.c; ctx.lineWidth = lw;
+    if (s.d === 'dash') ctx.setLineDash([lw * 3, lw * 2]); else if (s.d === 'dot') ctx.setLineDash([0.1, lw * 2]); ctx.lineCap = ctx.lineJoin = 'round';
     ctx.shadowColor = s.c === '#000000' ? 'rgba(255,255,255,.7)' : 'rgba(0,0,0,.55)'; ctx.shadowBlur = lw;
     if (s.t === 'rect') ctx.strokeRect(Math.min(s.x1, s.x2), Math.min(s.y1, s.y2), Math.abs(s.x2 - s.x1), Math.abs(s.y2 - s.y1));
     else if (s.t === 'ellipse') { ctx.beginPath(); ctx.ellipse((s.x1 + s.x2) / 2, (s.y1 + s.y2) / 2, Math.abs(s.x2 - s.x1) / 2 || 1, Math.abs(s.y2 - s.y1) / 2 || 1, 0, 0, Math.PI * 2); ctx.stroke(); }
+    else if (s.t === 'rrect') { const x = Math.min(s.x1, s.x2), y = Math.min(s.y1, s.y2), w = Math.abs(s.x2 - s.x1), h = Math.abs(s.y2 - s.y1), r = Math.min(w, h) * 0.22;
+      ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); ctx.stroke(); }
+    else if (s.t === 'line') { ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); ctx.stroke(); }
+    else if (s.t === 'free') { const pts = s.p || []; if (pts.length) { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); pts.forEach(q => ctx.lineTo(q[0], q[1])); ctx.stroke(); } }
     else if (s.t === 'arrow') {
-      const a = Math.atan2(s.y2 - s.y1, s.x2 - s.x1), hl = lw * 4.5;
+      const a = Math.atan2(s.y2 - s.y1, s.x2 - s.x1), hl = Math.max(lw * 4.5, lw0 * 3);
       ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2 - Math.cos(a) * hl * 0.6, s.y2 - Math.sin(a) * hl * 0.6); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(s.x2, s.y2); ctx.lineTo(s.x2 - hl * Math.cos(a - 0.45), s.y2 - hl * Math.sin(a - 0.45)); ctx.lineTo(s.x2 - hl * Math.cos(a + 0.45), s.y2 - hl * Math.sin(a + 0.45)); ctx.closePath(); ctx.fill();
+      ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(s.x2, s.y2); ctx.lineTo(s.x2 - hl * Math.cos(a - 0.45), s.y2 - hl * Math.sin(a - 0.45)); ctx.lineTo(s.x2 - hl * Math.cos(a + 0.45), s.y2 - hl * Math.sin(a + 0.45)); ctx.closePath(); ctx.fill();
     } else if (s.t === 'text') {
-      const fs = Math.max(18, Math.round(cv.width / 22)); ctx.font = `bold ${fs}px sans-serif`; ctx.textBaseline = 'middle';
+      const fs = Math.max(14, Math.round(cv.width / 22 * Math.sqrt(s.w || 1))); ctx.font = `bold ${fs}px sans-serif`; ctx.textBaseline = 'middle';
       ctx.shadowBlur = 0; ctx.lineWidth = Math.max(3, fs / 7); ctx.strokeStyle = s.c === '#000000' || s.c === '#1c71d8' ? '#fff' : '#000';
       ctx.strokeText(s.s, s.x1, s.y1); ctx.fillText(s.s, s.x1, s.y1);
     }
@@ -1405,33 +1423,96 @@ function annOpen(key){
   const base = new Image();
   base.onload = () => {
     const cv = $('annCv'); cv.width = base.naturalWidth; cv.height = base.naturalHeight;
-    ann = { key, im, cv, ctx: cv.getContext('2d'), base, shapes: JSON.parse(JSON.stringify(im.ann || [])), tool: ann ? ann.tool : 'arrow', col: ann ? ann.col : '#e01b24', drag: null };
+    ann = { sel: -1, key, im, cv, ctx: cv.getContext('2d'), base, shapes: JSON.parse(JSON.stringify(im.ann || [])), tool: ann ? ann.tool : 'arrow', col: ann ? ann.col : '#e01b24', w: ann ? ann.w : 1, dash: ann ? ann.dash : 'solid', drag: null };
     $('annModal').hidden = false; document.body.classList.add('noscroll');
-    annDraw();
+    $('annTools').querySelectorAll('[data-tool]').forEach(x => x.classList.toggle('on', x.dataset.tool === ann.tool)); $('annTxt').value = ''; annSelUI(); annRedraw();
   };
   base.src = im.orig || im.d;
 }
 function annClose(){ $('annModal').hidden = true; document.body.classList.remove('noscroll'); }
 const annPt = e => { const r = ann.cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * ann.cv.width / r.width, y: (e.clientY - r.top) * ann.cv.height / r.height }; };
+const annLw0 = () => Math.max(4, Math.round(ann.cv.width / 140));
+function annBox(s){
+  if (s.t === 'free') { const xs = s.p.map(q => q[0]), ys = s.p.map(q => q[1]); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; }
+  if (s.t === 'text') { const fs = Math.max(14, Math.round(ann.cv.width / 22 * Math.sqrt(s.w || 1))); ann.ctx.font = `bold ${fs}px sans-serif`; const w = ann.ctx.measureText(s.s).width; return [s.x1, s.y1 - fs / 2, s.x1 + w, s.y1 + fs / 2]; }
+  return [Math.min(s.x1, s.x2), Math.min(s.y1, s.y2), Math.max(s.x1, s.x2), Math.max(s.y1, s.y2)];
+}
+const annHasH = s => s.t !== 'free' && s.t !== 'text';
+function annHit(p){ const t = annLw0() * 3; for (let i = ann.shapes.length - 1; i >= 0; i--) { const b = annBox(ann.shapes[i]); if (p.x > b[0] - t && p.x < b[2] + t && p.y > b[1] - t && p.y < b[3] + t) return i; } return -1; }
+function annSelUI(){
+  const s = ann.shapes[ann.sel];
+  $('annDel').hidden = !s;
+  $('annTxtRow').hidden = !(ann.tool === 'text' || (s && s.t === 'text'));
+  if (s && s.t === 'text') $('annTxt').value = s.s;
+  const set = (attr, v) => $('annTools').querySelectorAll(`[${attr}]`).forEach(x => x.classList.toggle('on', x.getAttribute(attr) === String(v)));
+  if (s) { set('data-col', s.c); set('data-w', s.w || 1); if (s.d || s.t !== 'text') set('data-dash', s.d || 'solid'); }
+}
+function annRedraw(){
+  annDraw(ann.drag && ann.drag.isNew ? ann.drag.s : null);
+  const s = ann.shapes[ann.sel]; if (!s) return;
+  const c = ann.ctx, b = annBox(s), lw = annLw0(), pd = lw * 2;
+  c.save(); c.strokeStyle = '#1c71d8'; c.lineWidth = Math.max(2, lw / 2); c.setLineDash([lw * 2, lw * 1.5]);
+  c.strokeRect(b[0] - pd, b[1] - pd, b[2] - b[0] + pd * 2, b[3] - b[1] + pd * 2); c.setLineDash([]);
+  if (annHasH(s)) [[s.x1, s.y1], [s.x2, s.y2]].forEach(([x, y]) => { c.beginPath(); c.arc(x, y, lw * 2.2, 0, Math.PI * 2); c.fillStyle = '#fff'; c.fill(); c.lineWidth = Math.max(2, lw / 1.5); c.stroke(); });
+  c.restore();
+}
 $('annCv').addEventListener('pointerdown', e => {
-  if (!ann) return; e.preventDefault(); const p = annPt(e);
-  if (ann.tool === 'text') { const t = $('annTxt').value.trim(); if (!t) { $('annTxt').focus(); return; } ann.shapes.push({ t: 'text', c: ann.col, x1: p.x, y1: p.y, s: t }); annDraw(); return; }
-  ann.drag = { t: ann.tool, c: ann.col, x1: p.x, y1: p.y, x2: p.x, y2: p.y }; $('annCv').setPointerCapture(e.pointerId);
+  if (!ann) return; e.preventDefault(); const p = annPt(e), hr = annLw0() * 4;
+  const cur = ann.shapes[ann.sel];
+  if (cur) {
+    if (annHasH(cur) && Math.hypot(p.x - cur.x1, p.y - cur.y1) < hr) ann.drag = { mode: 'h1' };
+    else if (annHasH(cur) && Math.hypot(p.x - cur.x2, p.y - cur.y2) < hr) ann.drag = { mode: 'h2' };
+    else if (annHit(p) === ann.sel) ann.drag = { mode: 'move' };
+  }
+  if (!ann.drag && ann.tool === 'select') { ann.sel = annHit(p); if (ann.sel >= 0) ann.drag = { mode: 'move' }; annSelUI(); }
+  if (!ann.drag && ann.tool !== 'select') {
+    if (ann.tool === 'text') {
+      const t = $('annTxt').value.trim(); const hit = annHit(p);
+      if (hit >= 0 && ann.shapes[hit].t === 'text') { ann.sel = hit; ann.drag = { mode: 'move' }; annSelUI(); }
+      else if (!t || (cur && cur.t === 'text')) { ann.sel = -1; $('annTxt').value = ''; annSelUI(); $('annTxt').focus(); annRedraw(); return; }
+      else { ann.shapes.push({ t: 'text', c: ann.col, w: ann.w, x1: p.x, y1: p.y, s: t }); ann.sel = ann.shapes.length - 1; annSelUI(); annRedraw(); return; }
+    } else {
+      ann.sel = -1;
+      const s = { t: ann.tool, c: ann.col, w: ann.w, d: ann.dash, x1: p.x, y1: p.y, x2: p.x, y2: p.y }; if (ann.tool === 'free') s.p = [[p.x, p.y]];
+      ann.drag = { mode: 'new', isNew: true, s };
+    }
+  }
+  if (ann.drag) { ann.drag.lx = p.x; ann.drag.ly = p.y; $('annCv').setPointerCapture(e.pointerId); }
+  annRedraw();
 });
-$('annCv').addEventListener('pointermove', e => { if (!ann || !ann.drag) return; const p = annPt(e); ann.drag.x2 = p.x; ann.drag.y2 = p.y; annDraw(ann.drag); });
-const annUp = () => { if (!ann || !ann.drag) return; const d = ann.drag; ann.drag = null; if (Math.hypot(d.x2 - d.x1, d.y2 - d.y1) > ann.cv.width / 60) ann.shapes.push(d); annDraw(); };
+$('annCv').addEventListener('pointermove', e => {
+  if (!ann || !ann.drag) return; const p = annPt(e), d = ann.drag, dx = p.x - d.lx, dy = p.y - d.ly; d.lx = p.x; d.ly = p.y;
+  if (d.mode === 'new') { d.s.x2 = p.x; d.s.y2 = p.y; if (d.s.p) d.s.p.push([Math.round(p.x), Math.round(p.y)]); }
+  else { const s = ann.shapes[ann.sel]; if (!s) return;
+    if (d.mode === 'h1') { s.x1 = p.x; s.y1 = p.y; } else if (d.mode === 'h2') { s.x2 = p.x; s.y2 = p.y; }
+    else { s.x1 += dx; s.y1 += dy; if (s.x2 != null) { s.x2 += dx; s.y2 += dy; } if (s.p) s.p = s.p.map(q => [q[0] + dx, q[1] + dy]); } }
+  annRedraw();
+});
+const annUp = () => {
+  if (!ann || !ann.drag) return; const d = ann.drag; ann.drag = null;
+  if (d.mode === 'new') { const s = d.s; if (s.p ? s.p.length > 2 : Math.hypot(s.x2 - s.x1, s.y2 - s.y1) > ann.cv.width / 60) { ann.shapes.push(s); ann.sel = ann.shapes.length - 1; } annSelUI(); }
+  annRedraw();
+};
 $('annCv').addEventListener('pointerup', annUp); $('annCv').addEventListener('pointercancel', annUp);
+$('annTxt').addEventListener('input', () => { const s = ann && ann.shapes[ann.sel]; if (s && s.t === 'text') { s.s = $('annTxt').value || ' '; annRedraw(); } });
 $('annTools').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || !ann) return;
-  if (b.dataset.tool) { ann.tool = b.dataset.tool; $('annTools').querySelectorAll('[data-tool]').forEach(x => x.classList.toggle('on', x === b)); $('annTxtRow').hidden = ann.tool !== 'text'; if (ann.tool === 'text') $('annTxt').focus(); }
-  else if (b.dataset.col) { ann.col = b.dataset.col; $('annTools').querySelectorAll('[data-col]').forEach(x => x.classList.toggle('on', x === b)); }
-  else if (b.id === 'annUndo') { ann.shapes.pop(); annDraw(); }
-  else if (b.id === 'annClear') { ann.shapes = []; annDraw(); }
+  const s = ann.shapes[ann.sel];
+  const on = attr => $('annTools').querySelectorAll(`[${attr}]`).forEach(x => x.classList.toggle('on', x === b));
+  if (b.dataset.tool) { ann.tool = b.dataset.tool; on('data-tool'); if (ann.tool !== 'select') ann.sel = -1; annSelUI(); if (ann.tool === 'text') { $('annTxt').value = ''; $('annTxt').focus(); } }
+  else if (b.dataset.w) { ann.w = +b.dataset.w; on('data-w'); if (s) s.w = ann.w; }
+  else if (b.dataset.dash) { ann.dash = b.dataset.dash; on('data-dash'); if (s && s.t !== 'text') s.d = ann.dash; }
+  else if (b.dataset.col) { ann.col = b.dataset.col; on('data-col'); if (s) s.c = ann.col; }
+  else if (b.id === 'annDel') { if (s) ann.shapes.splice(ann.sel, 1); ann.sel = -1; annSelUI(); }
+  else if (b.id === 'annUndo') { ann.shapes.pop(); ann.sel = -1; annSelUI(); }
+  else if (b.id === 'annClear') { ann.shapes = []; ann.sel = -1; annSelUI(); }
+  annRedraw();
 });
 $('annCancel').onclick = annClose;
 $('annOk').onclick = () => {
   const { im, cv, shapes } = ann;
   if (!im.orig) im.orig = im.d;
+  ann.sel = -1;
   if (shapes.length) { annDraw(); im.d = cv.toDataURL('image/jpeg', 0.88); im.ann = shapes; }
   else { im.d = im.orig; delete im.orig; delete im.ann; }
   annClose(); renderEditor(); touch();
