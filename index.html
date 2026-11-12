@@ -186,27 +186,15 @@ details.secd[open] > summary{margin-bottom:4px}
     <div id="syncBox" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
       <div class="muted" id="syncWhere" style="font-size:12px;font-weight:600"></div>
       <div class="row" style="margin-top:4px"><button class="sm" id="syncBtn" style="background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600">☁ Sincronizar</button><span class="muted" id="syncSt" style="font-size:12px;flex:1"></span></div>
-      <details id="nubeFold" style="margin-top:6px"><summary style="font-size:13px">Configurar nube</summary>
-      <details style="margin-top:8px"><summary>Guardar en Google Drive</summary>
+      <details id="nubeFold" style="margin-top:6px"><summary style="font-size:13px">Configurar Google Drive</summary>
         <div id="drvClientBox">
           <label>ID de cliente web de Google</label><input type="text" id="drvClient" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off">
-          <p class="muted" style="font-size:12px;margin:4px 0 0">Se crea una sola vez en Google Cloud (ver pasos en el README de la app).</p>
+          <p class="muted" style="font-size:12px;margin:4px 0 0">Se crea una sola vez en console.cloud.google.com → Credenciales → ID de cliente de OAuth → Aplicación web, con el origen https://moliveras-ops.github.io. Termina en .apps.googleusercontent.com (no es tu correo).</p>
         </div>
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)"><input type="checkbox" id="drvWord" style="width:auto"> Guardar también cada Word generado en Drive</label>
         <button class="sm" id="drvConnect" style="width:100%;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600"><svg width="18" height="16" viewBox="0 0 87.3 78"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3L27.5 53H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 1.2c-1.35.8-2.5 1.9-3.3 3.3L1.2 48.5A9.06 9.06 0 000 53h27.5z" fill="#00ac47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.5z" fill="#ea4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 53h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>Conectar con Google Drive</button>
         <button class="x" id="drvOff" style="margin-top:6px">Desconectar Drive en este equipo</button>
         <p class="muted" style="font-size:12px">Los informes quedan en la carpeta <b>BoilerReport</b> de tu Drive (subcarpetas informes, fotos y Word). La app solo ve los archivos que ella misma crea.</p>
-      </details>
-      <details style="margin-top:6px"><summary>Guardar en GitHub (repositorio privado)</summary>
-        <ol class="muted" style="font-size:13px;padding-left:18px">
-          <li>En GitHub crea un repositorio <b>privado</b>, por ejemplo <code>BoilerReport-datos</code>.</li>
-          <li>Crea un token en GitHub → Settings → Developer settings → <b>Fine-grained tokens</b>: acceso solo a ese repositorio, permiso <b>Contents: Read and write</b>.</li>
-          <li>Pega aquí el repositorio y el token, en cada equipo (celular y PC).</li>
-        </ol>
-        <label>Repositorio</label><input type="text" id="syncRepo" placeholder="moliveras-ops/BoilerReport-datos" autocomplete="off">
-        <label>Token</label><input type="password" id="syncTok" placeholder="github_pat_…" autocomplete="off">
-        <button class="sm" id="syncSave" style="width:100%;margin-top:8px">Guardar y sincronizar con GitHub</button>
-      </details>
       </details>
     </div>
   </section>
@@ -2197,43 +2185,33 @@ $('infFile').onchange = async e => {
   } catch(err){ msg('genMsg', 'err', 'El archivo no es un informe de BoilerReport.'); }
 };
 
-// ===== Sincronización: Google Drive o repositorio privado de GitHub =====
+// ===== Sincronización con Google Drive =====
 const SYNC_OK = !(window.claude && window.claude.use) && typeof fetch === 'function';
 const provider = () => LS.get('it_provider', '');
 const ghCfg = () => { const c = LS.get('it_sync', null); return c && c.repo && c.token ? c : null; };
 const drvCfg = () => { const c = LS.get('it_drive', null); return c && (c.clientId || window.Android) && c.connected ? c : null; };
-const syncCfg = () => provider() === 'drive' ? drvCfg() : provider() === 'github' ? ghCfg() : null;
+const syncCfg = () => provider() === 'drive' ? drvCfg() : null;
 let syncing = false, autoT = null;
 
 function syncStatus(t, cls){ const s = $('syncSt'); if (s) { s.textContent = t; s.style.color = cls === 'err' ? 'var(--err)' : cls === 'ok' ? 'var(--ok)' : 'var(--mut)'; } }
 function syncLabel(){
   const p = provider();
-  $('syncWhere').textContent = p === 'drive' ? '☁ Google Drive' + (LS.get('it_drive', {}).email ? ' · ' + LS.get('it_drive', {}).email : '') : p === 'github' ? '☁ GitHub · ' + (LS.get('it_sync', {}).repo || '') : 'Sin nube configurada';
+  $('syncWhere').textContent = p === 'drive' ? '☁ Google Drive' + (LS.get('it_drive', {}).email ? ' · ' + LS.get('it_drive', {}).email : '') : 'Google Drive sin conectar';
 }
 function syncInit(){
-  if (!SYNC_OK) { $('syncBox').innerHTML = '<p class="muted" style="margin:8px 0 0">☁ La sincronización (Google Drive o GitHub) funciona en la app Android y en la web de GitHub. Aquí puedes usar Exportar/Importar.</p>'; return; }
+  if (!SYNC_OK) { $('syncBox').innerHTML = '<p class="muted" style="margin:8px 0 0">☁ La sincronización con Google Drive funciona en la app Android y en la web de GitHub. Aquí puedes usar Exportar/Importar.</p>'; return; }
   const c = LS.get('it_sync', {}) || {};
-  $('syncRepo').value = c.repo || ''; $('syncTok').value = c.token ? '••••••••' : '';
   const d = LS.get('it_drive', {}) || {};
   $('drvClient').value = d.clientId || '';
   if (window.Android) $('drvClientBox').hidden = true;
   $('drvWord').checked = d.word !== false;
   syncLabel();
-  syncStatus(syncCfg() ? (LS.get('it_lastsync', 0) ? 'Última sincronización: ' + new Date(LS.get('it_lastsync', 0)).toLocaleString('es-CL') : 'Configurada, aún sin sincronizar') : 'Elige dónde guardar: Google Drive o GitHub');
+  syncStatus(syncCfg() ? (LS.get('it_lastsync', 0) ? 'Última sincronización: ' + new Date(LS.get('it_lastsync', 0)).toLocaleString('es-CL') : 'Configurada, aún sin sincronizar') : 'Conecta Google Drive en «Configurar Google Drive», o usa «☁ Respaldo a Drive»');
   if (syncCfg()) setTimeout(() => runSync(true), 1500);
   window.addEventListener('online', () => runSync(true));
 }
 function scheduleAutoSync(){ if (!SYNC_OK || !syncCfg()) return; clearTimeout(autoT); autoT = setTimeout(() => runSync(true), 60000); }
 
-// ---- configuración GitHub ----
-$('syncSave') && ($('syncSave').onclick = () => {
-  const repo = $('syncRepo').value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/\/$/, '');
-  const tok = $('syncTok').value.trim(); const old = LS.get('it_sync', {}) || {};
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) { syncStatus('Escribe el repositorio como usuario/nombre', 'err'); return; }
-  LS.set('it_sync', { repo, token: /^•+$/.test(tok) ? old.token : tok });
-  LS.set('it_provider', 'github'); syncLabel();
-  $('syncTok').value = '••••••••'; syncStatus('Guardado. Sincronizando…'); runSync(false);
-});
 $('syncBtn') && ($('syncBtn').onclick = () => runSync(false, true));
 
 // ---- Google Drive: inicio de sesión ----
@@ -2421,7 +2399,7 @@ async function driveSaveWord(filename, blob){
 // ---- sincronización (igual para ambos) ----
 async function runSync(silent, interactive){
   if (!SYNC_OK || syncing) return;
-  if (!syncCfg()) { if (!silent) syncStatus('Primero conecta Google Drive o configura GitHub', 'err'); return; }
+  if (!syncCfg()) { if (!silent) syncStatus('Primero conecta Google Drive en «Configurar Google Drive»', 'err'); return; }
   if (!navigator.onLine) { syncStatus('Sin conexión: se sincronizará al volver la señal'); return; }
   syncing = true; const btn = $('syncBtn'); if (btn) btn.disabled = true;
   syncStatus('Sincronizando…');
