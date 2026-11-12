@@ -134,6 +134,18 @@ body.has-dict .micw{display:flex}
 .spi .ch{display:flex;flex-wrap:wrap;gap:6px}
 .spi .ch button.sg{color:var(--acc);border-color:var(--acc);font-weight:600}
 .firmaPrev img{max-width:220px;max-height:90px;display:block;background:#fff;border:1px dashed var(--line);border-radius:6px;padding:4px}
+.thumb{position:relative}
+.annb{position:absolute;top:6px;right:6px;padding:4px 8px;font-size:12px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid var(--line);color:var(--acc);font-weight:600}
+.thumb img[data-ann]{cursor:pointer}
+.anntools{background:var(--card);border-bottom:1px solid var(--line);padding:6px 8px;display:flex;flex-direction:column;gap:6px}
+.annrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.annrow button{padding:7px 10px;font-size:13px}
+.annrow button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.annrow button.col{width:30px;height:30px;padding:0;border-radius:50%;border:2px solid var(--line)}
+.annrow button.col.on{outline:3px solid var(--acc);outline-offset:2px;background-clip:padding-box}
+.annrow input{flex:1;padding:8px 10px}
+.annwrap{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:10px;background:#333}
+#annCv{max-width:100%;touch-action:none;background:#000}
 .blk{border-top:1px dashed var(--line);margin-top:12px;padding-top:8px}
 .tmodal{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column}
 .tmodal[hidden]{display:none}
@@ -360,6 +372,13 @@ details.secd[open] > summary{margin-bottom:4px}
     </div>
   </details>
   <div id="spModal" class="tmodal" hidden><div class="tmhead"><b>Ortografía</b><button class="pri" id="spClose" style="width:auto;padding:8px 18px">Listo</button></div><div class="tmbody" id="spBody"></div></div>
+  <div id="annModal" class="tmodal" hidden><div class="tmhead"><button class="sm" id="annCancel">Cancelar</button><b>Señalar en la imagen</b><button class="pri" id="annOk" style="width:auto;padding:8px 18px">Listo</button></div>
+    <div class="anntools" id="annTools">
+      <div class="annrow"><button data-tool="arrow" class="on">➜ Flecha</button><button data-tool="ellipse">◯ Círculo</button><button data-tool="rect">▭ Rectángulo</button><button data-tool="text">T Texto</button></div>
+      <div class="annrow"><button data-col="#e01b24" class="col on" style="background:#e01b24"></button><button data-col="#f6d32d" class="col" style="background:#f6d32d"></button><button data-col="#ffffff" class="col" style="background:#fff"></button><button data-col="#1c71d8" class="col" style="background:#1c71d8"></button><button data-col="#000000" class="col" style="background:#000"></button><span style="flex:1"></span><button id="annUndo">↶ Deshacer</button><button id="annClear">Borrar todo</button></div>
+      <div class="annrow" id="annTxtRow" hidden><input type="text" id="annTxt" placeholder="Escribe el texto y toca la imagen donde va" autocomplete="off"></div>
+    </div>
+    <div class="annwrap"><canvas id="annCv"></canvas></div></div>
   <div id="tModal" class="tmodal" hidden><div class="tmhead"><b id="tmTitle">Tabla</b><button class="pri" id="tmClose" style="width:auto;padding:8px 18px">Listo</button></div><div class="tmbody" id="tmBody"></div></div>
   <button class="sm" id="clearDraft" style="width:100%;margin-bottom:12px">Nuevo informe (borrar borrador)</button>
   <input type="file" id="imgFile" accept="image/*" multiple hidden>
@@ -380,7 +399,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 13:20</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 13:30</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -1217,7 +1236,7 @@ $('imgFile').onchange = async e => {
 };
 
 // ---- render ----
-const thumb = (im, del, capKey, cap, num) => `<div class="thumb"><img src="${im.d}" alt="">${capKey != null ? `<input type="text" data-cap="${capKey}" value="${esc(cap || '')}" placeholder="Descripción de la foto">` : ''}<div class="tb"><span>${num || ''}</span><button class="x" data-del="${del}">Quitar</button></div></div>`;
+const thumb = (im, del, capKey, cap, num) => `<div class="thumb"><img src="${im.d}" alt="" data-ann="${del}"><button type="button" class="annb" data-ann="${del}">✎ Señalar</button>${capKey != null ? `<input type="text" data-cap="${capKey}" value="${esc(cap || '')}" placeholder="Descripción de la foto">` : ''}<div class="tb"><span>${num || ''}</span><button class="x" data-del="${del}">Quitar</button></div></div>`;
 const allFotos = s => (s.fotos || []).concat(...(s.bloques || []).map(b => b.fotos || []));
 // ---- corrector ortográfico (diccionario español, funciona sin señal) ----
 let spW = null, spSeq = 0, spCb = {};
@@ -1350,6 +1369,74 @@ document.addEventListener('input', e => autoH(e.target));
 document.addEventListener('toggle', () => setTimeout(autoAll, 0), true);
 document.addEventListener('click', e => { if (e.target.closest('[data-tab], #hdrDatos, [data-sfold], #efAll')) setTimeout(autoAll, 0); });
 window.addEventListener('resize', () => setTimeout(autoAll, 50));
+// ---- señalar en imágenes (flechas, círculos, rectángulos, texto) ----
+let ann = null;
+function annImg(key){
+  const p = key.split(':');
+  if (p[0] === 'andamios') return draft.andamios[+p[1]];
+  if (p[0] === 'esqNum' || p[0] === 'esqPartes') return draft[p[0]];
+  if (p[0] === 'foto') { const sc = draft.secciones[+p[1]]; const arr = p[3] != null ? sc.bloques[+p[3]].fotos : sc.fotos; return arr[+p[2]] && arr[+p[2]].img; }
+  return null;
+}
+function annDraw(prev){
+  const { cv, ctx, base, shapes } = ann;
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.drawImage(base, 0, 0, cv.width, cv.height);
+  const lw = Math.max(4, Math.round(cv.width / 140));
+  shapes.concat(prev ? [prev] : []).forEach(s => {
+    ctx.save(); ctx.strokeStyle = ctx.fillStyle = s.c; ctx.lineWidth = lw; ctx.lineCap = ctx.lineJoin = 'round';
+    ctx.shadowColor = s.c === '#000000' ? 'rgba(255,255,255,.7)' : 'rgba(0,0,0,.55)'; ctx.shadowBlur = lw;
+    if (s.t === 'rect') ctx.strokeRect(Math.min(s.x1, s.x2), Math.min(s.y1, s.y2), Math.abs(s.x2 - s.x1), Math.abs(s.y2 - s.y1));
+    else if (s.t === 'ellipse') { ctx.beginPath(); ctx.ellipse((s.x1 + s.x2) / 2, (s.y1 + s.y2) / 2, Math.abs(s.x2 - s.x1) / 2 || 1, Math.abs(s.y2 - s.y1) / 2 || 1, 0, 0, Math.PI * 2); ctx.stroke(); }
+    else if (s.t === 'arrow') {
+      const a = Math.atan2(s.y2 - s.y1, s.x2 - s.x1), hl = lw * 4.5;
+      ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2 - Math.cos(a) * hl * 0.6, s.y2 - Math.sin(a) * hl * 0.6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(s.x2, s.y2); ctx.lineTo(s.x2 - hl * Math.cos(a - 0.45), s.y2 - hl * Math.sin(a - 0.45)); ctx.lineTo(s.x2 - hl * Math.cos(a + 0.45), s.y2 - hl * Math.sin(a + 0.45)); ctx.closePath(); ctx.fill();
+    } else if (s.t === 'text') {
+      const fs = Math.max(18, Math.round(cv.width / 22)); ctx.font = `bold ${fs}px sans-serif`; ctx.textBaseline = 'middle';
+      ctx.shadowBlur = 0; ctx.lineWidth = Math.max(3, fs / 7); ctx.strokeStyle = s.c === '#000000' || s.c === '#1c71d8' ? '#fff' : '#000';
+      ctx.strokeText(s.s, s.x1, s.y1); ctx.fillText(s.s, s.x1, s.y1);
+    }
+    ctx.restore();
+  });
+}
+function annOpen(key){
+  const im = annImg(key); if (!im) return;
+  const base = new Image();
+  base.onload = () => {
+    const cv = $('annCv'); cv.width = base.naturalWidth; cv.height = base.naturalHeight;
+    ann = { key, im, cv, ctx: cv.getContext('2d'), base, shapes: JSON.parse(JSON.stringify(im.ann || [])), tool: ann ? ann.tool : 'arrow', col: ann ? ann.col : '#e01b24', drag: null };
+    $('annModal').hidden = false; document.body.classList.add('noscroll');
+    annDraw();
+  };
+  base.src = im.orig || im.d;
+}
+function annClose(){ $('annModal').hidden = true; document.body.classList.remove('noscroll'); }
+const annPt = e => { const r = ann.cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * ann.cv.width / r.width, y: (e.clientY - r.top) * ann.cv.height / r.height }; };
+$('annCv').addEventListener('pointerdown', e => {
+  if (!ann) return; e.preventDefault(); const p = annPt(e);
+  if (ann.tool === 'text') { const t = $('annTxt').value.trim(); if (!t) { $('annTxt').focus(); return; } ann.shapes.push({ t: 'text', c: ann.col, x1: p.x, y1: p.y, s: t }); annDraw(); return; }
+  ann.drag = { t: ann.tool, c: ann.col, x1: p.x, y1: p.y, x2: p.x, y2: p.y }; $('annCv').setPointerCapture(e.pointerId);
+});
+$('annCv').addEventListener('pointermove', e => { if (!ann || !ann.drag) return; const p = annPt(e); ann.drag.x2 = p.x; ann.drag.y2 = p.y; annDraw(ann.drag); });
+const annUp = () => { if (!ann || !ann.drag) return; const d = ann.drag; ann.drag = null; if (Math.hypot(d.x2 - d.x1, d.y2 - d.y1) > ann.cv.width / 60) ann.shapes.push(d); annDraw(); };
+$('annCv').addEventListener('pointerup', annUp); $('annCv').addEventListener('pointercancel', annUp);
+$('annTools').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || !ann) return;
+  if (b.dataset.tool) { ann.tool = b.dataset.tool; $('annTools').querySelectorAll('[data-tool]').forEach(x => x.classList.toggle('on', x === b)); $('annTxtRow').hidden = ann.tool !== 'text'; if (ann.tool === 'text') $('annTxt').focus(); }
+  else if (b.dataset.col) { ann.col = b.dataset.col; $('annTools').querySelectorAll('[data-col]').forEach(x => x.classList.toggle('on', x === b)); }
+  else if (b.id === 'annUndo') { ann.shapes.pop(); annDraw(); }
+  else if (b.id === 'annClear') { ann.shapes = []; annDraw(); }
+});
+$('annCancel').onclick = annClose;
+$('annOk').onclick = () => {
+  const { im, cv, shapes } = ann;
+  if (!im.orig) im.orig = im.d;
+  if (shapes.length) { annDraw(); im.d = cv.toDataURL('image/jpeg', 0.88); im.ann = shapes; }
+  else { im.d = im.orig; delete im.orig; delete im.ann; }
+  annClose(); renderEditor(); touch();
+};
+document.addEventListener('click', e => { const k = e.target.dataset && e.target.dataset.ann; if (k && e.target.closest('#tab-editor')) annOpen(k); });
 // ---- dictado por voz ----
 let dict = null, dictTarget = null, dictBtn = null;
 const MIC_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>';
