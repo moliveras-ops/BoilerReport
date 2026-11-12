@@ -18,7 +18,10 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "IBM Plex Sans",system-ui,sans-serif}
 header{background:var(--acc);color:#fff;padding:9px 14px;display:flex;align-items:baseline;gap:10px}
 header h1{margin:0;font-size:17px;font-weight:600}
-header p{margin:0;opacity:.8;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header p{margin:0;opacity:.8;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+header{align-items:center}
+.hbtn{flex:none;width:auto;margin:0;padding:6px 12px;font-size:13px;font-weight:600;border-radius:8px;border:1px solid rgba(255,255,255,.6);background:transparent;color:#fff}
+.hbtn.on{background:#fff;color:var(--acc)}
 main{max-width:720px;margin:0 auto 90px;padding:0 8px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:8px}
 .efbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}.efbar .saved{margin:0;flex:1}.efbar button{flex:none;padding:6px 12px}
@@ -168,6 +171,7 @@ details.secd[open] > summary{margin-bottom:4px}
 <header>
   <h1>BoilerReport</h1>
   <p>Informes IQS · Calderas</p>
+  <button id="hdrDatos" class="hbtn" type="button">📋 Datos</button>
 </header>
 <nav class="tabs" id="tabs">
   <button data-tab="datos" class="on">Datos</button>
@@ -1056,9 +1060,11 @@ const openRer = new Set();
 
 // ---- tabs ----
 $('tabs').onclick = e => { const t = e.target.dataset.tab; if (t) showTab(t); };
+$('hdrDatos').onclick = () => showTab('datos');
 function showTab(t){
   ['datos','editor','campos'].forEach(x => { $('tab-' + x).hidden = x !== t; });
   [...$('tabs').children].forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  $('hdrDatos').classList.toggle('on', t === 'datos');
   if (t === 'campos') renderChk();
   window.scrollTo(0, 0);
 }
