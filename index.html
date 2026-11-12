@@ -181,8 +181,8 @@ details.secd[open] > summary{margin-bottom:4px}
 <div id="tab-datos">
   <section class="card" id="infCard">
     <div class="row"><select id="infSel"></select><button class="sm" id="infNew">+ Nuevo</button></div>
-    <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="sm" id="infExp">Exportar</button><button class="sm" id="infImp">Importar</button><span style="flex:1"></span><button class="x" id="infDel">Eliminar</button></div>
-    <input type="file" id="infFile" accept=".json,application/json" hidden>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="sm" id="infExp">Exportar</button><button class="sm" id="infImp">Importar</button><button class="sm" id="infDrive">☁ Respaldo a Drive</button><span style="flex:1"></span><button class="x" id="infDel">Eliminar</button></div>
+    <input type="file" id="infFile" accept=".json,.txt,application/json,text/plain" hidden>
     <div id="syncBox" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
       <div class="muted" id="syncWhere" style="font-size:12px;font-weight:600"></div>
       <div class="row" style="margin-top:4px"><button class="sm" id="syncBtn" style="background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600">☁ Sincronizar</button><span class="muted" id="syncSt" style="font-size:12px;flex:1"></span></div>
@@ -933,6 +933,28 @@ drop.onclick = () => $('file').click();
 drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
 $('file').onchange = e => { const f = e.target.files[0]; if (f) loadFile(f); e.target.value = ''; };
 
+// ---- Guardar en Drive con el menú Compartir del celular (sin configurar nada) ----
+let shareBuf = null;
+async function shareFile(name, data, mime){
+  const f = new File([data], name, { type: mime });
+  if (!(navigator.canShare && navigator.canShare({ files: [f] }))) return 'nosoporta';
+  try { await navigator.share({ files: [f], title: name }); return 'ok'; }
+  catch(e){ return e && e.name === 'AbortError' ? 'cancelado' : 'gesto'; }
+}
+// intenta compartir; si el navegador pide un nuevo toque, deja un botón en el mensaje
+async function offerDrive(name, data, mime, okTxt){
+  shareBuf = { name, data, mime };
+  const r = await shareFile(name, data, mime);
+  if (r === 'ok') msg('genMsg', 'ok', okTxt || 'Listo. Elige <b>Drive</b> en el menú y la carpeta donde guardarlo.');
+  else if (r === 'gesto') $('genMsg').insertAdjacentHTML('beforeend', `<br><button class="sm" data-sharelast="1" style="margin-top:6px;font-weight:600">☁ Guardar en Drive</button>`);
+  else if (r === 'nosoporta') $('genMsg').insertAdjacentHTML('beforeend', '<br>Este navegador no permite enviar este archivo a Drive. Ábrelo desde Descargas en la app de Drive: <b>+ → Subir</b>.');
+  return r;
+}
+document.addEventListener('click', async e => {
+  if (!e.target.closest || !e.target.closest('[data-sharelast]') || !shareBuf) return;
+  const r = await shareFile(shareBuf.name, shareBuf.data, shareBuf.mime);
+  if (r === 'nosoporta') $('genMsg').insertAdjacentHTML('beforeend', '<br>Este navegador no permite enviar este archivo a Drive. Súbelo desde la app de Drive: <b>+ → Subir</b>.');
+});
 function msg(id, cls, html){ const m = $(id); m.className = 'msg ' + (cls || ''); m.innerHTML = html || ''; }
 
 async function loadFile(f){
@@ -1017,6 +1039,8 @@ $('gen').onclick = async () => {
     if (await save(fn, r.data)) {
       msg('genMsg', vacios.length ? 'warn' : 'ok',
         `Informe generado: <strong>${esc(fn)}</strong>` + edNote + (lg && !r.logoApplied ? '<br>La plantilla no tiene un logo marcado como LOGO_CLIENTE; se mantuvo el logo original.' : '') + (vacios.length ? `<br>Quedaron vacíos: ${vacios.map(k=>'<code>'+esc(k)+'</code>').join(' ')}` : ''));
+      shareBuf = { name: fn, data: r.data, mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+      if (navigator.canShare) $('genMsg').insertAdjacentHTML('beforeend', '<br><button class="sm" data-sharelast="1" style="margin-top:6px;font-weight:600">☁ Guardar en Drive</button>');
       if (typeof driveSaveWord === 'function') driveSaveWord(fn, r.data).then(ok => { if (ok) $('genMsg').insertAdjacentHTML('beforeend', '<br>☁ Copia guardada en Google Drive (BoilerReport/Word).'); });
     }
   } catch(err) { console.error(err); msg('genMsg','err','Ocurrió un error al generar el informe.'); }
@@ -2151,6 +2175,13 @@ $('infExp').onclick = async () => {
   if (await save(fn, JSON.stringify({ app: 'BoilerReport', v: 1, informe: rec }))) msg('genMsg', 'ok', 'Informe exportado: ' + esc(fn) + '. Ábrelo en el otro equipo con “Importar”.');
 };
 $('infImp').onclick = () => $('infFile').click();
+$('infDrive').onclick = async () => {
+  await flushSave(); if (!infIndex.find(x => x.id === curId)) await saveCurrent();
+  const rec = await IDB.get('inf:' + curId);
+  const fn = 'BoilerReport_' + rec.nombre.replace(/[^\wáéíóúñÁÉÍÓÚÑ\- ]+/g, '').trim().replace(/\s+/g, '_') + '.txt';
+  msg('genMsg', 'ok', 'Respaldo listo: ' + esc(fn) + '. Para seguir en el PC, ábrelo desde Drive con “Importar”.');
+  await offerDrive(fn, JSON.stringify({ app: 'BoilerReport', v: 1, informe: rec }), 'text/plain', 'Respaldo enviado. En el PC, descárgalo de Drive y ábrelo con <b>Importar</b>.');
+};
 $('infFile').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
