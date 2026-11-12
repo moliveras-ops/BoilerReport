@@ -127,6 +127,12 @@ body.has-dict .micw{display:flex}
 .secx .ssum{display:none;font-size:12px;margin-top:2px;cursor:pointer}
 .secx.pleg .ssum{display:block}
 .secx.pleg .secb{display:none}
+.spi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}
+.spi .w{font-weight:600;color:var(--err);font-size:15px}
+.spi .ctx{font-size:13px;color:var(--mut);margin:4px 0 8px}
+.spi .ctx b{color:var(--ink)}
+.spi .ch{display:flex;flex-wrap:wrap;gap:6px}
+.spi .ch button.sg{color:var(--acc);border-color:var(--acc);font-weight:600}
 .blk{border-top:1px dashed var(--line);margin-top:12px;padding-top:8px}
 .tmodal{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column}
 .tmodal[hidden]{display:none}
@@ -269,7 +275,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
 <div id="tab-editor" hidden>
-  <div class="efbar"><p class="saved" id="savedTxt"></p><button class="sm" id="efAll">Minimizar todo</button></div>
+  <div class="efbar"><p class="saved" id="savedTxt"></p><button class="sm" id="spBtn">Ortografía</button><button class="sm" id="efAll">Minimizar todo</button></div>
   <details class="card fold ef" data-ef="intro" open>
     <summary><span>1.0 Introducción</span><span class="muted" id="fs_intro"></span></summary>
     <div class="efb">
@@ -337,6 +343,7 @@ details.secd[open] > summary{margin-bottom:4px}
     <textarea id="e_rec" placeholder="Una recomendación por línea"></textarea>
     </div>
   </details>
+  <div id="spModal" class="tmodal" hidden><div class="tmhead"><b>Ortografía</b><button class="pri" id="spClose" style="width:auto;padding:8px 18px">Listo</button></div><div class="tmbody" id="spBody"></div></div>
   <div id="tModal" class="tmodal" hidden><div class="tmhead"><b id="tmTitle">Tabla</b><button class="pri" id="tmClose" style="width:auto;padding:8px 18px">Listo</button></div><div class="tmbody" id="tmBody"></div></div>
   <button class="sm" id="clearDraft" style="width:100%;margin-bottom:12px">Nuevo informe (borrar borrador)</button>
   <input type="file" id="imgFile" accept="image/*" multiple hidden>
@@ -357,7 +364,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 11:55</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 12:05</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -1172,6 +1179,64 @@ $('imgFile').onchange = async e => {
 // ---- render ----
 const thumb = (im, del, capKey, cap, num) => `<div class="thumb"><img src="${im.d}" alt="">${capKey != null ? `<input type="text" data-cap="${capKey}" value="${esc(cap || '')}" placeholder="Descripción de la foto">` : ''}<div class="tb"><span>${num || ''}</span><button class="x" data-del="${del}">Quitar</button></div></div>`;
 const allFotos = s => (s.fotos || []).concat(...(s.bloques || []).map(b => b.fotos || []));
+// ---- corrector ortográfico (diccionario español, funciona sin señal) ----
+let spW = null, spSeq = 0, spCb = {};
+const spIgn = new Set();
+function spWorker(){
+  if (spW) return spW;
+  spW = new Worker('spell/worker.js');
+  spW.onmessage = e => { const f = spCb[e.data.id]; delete spCb[e.data.id]; if (f) f(e.data); };
+  spW.onerror = () => { Object.values(spCb).forEach(f => f({ err: 'worker' })); spCb = {}; spW = null; };
+  return spW;
+}
+const spAsk = (words, add) => new Promise(res => { const id = ++spSeq; spCb[id] = res; spWorker().postMessage({ id, words, add }); });
+const spDic = () => LS.get('it_dic', []);
+const WRE = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+/g;
+function spFields(){
+  return [...$('tab-editor').querySelectorAll('textarea, input[type=text]')].filter(el => el.value && el.value.trim() && !el.dataset.tv);
+}
+function spLabel(el){
+  let n = el, lb = '';
+  for (let k = 0; k < 4 && n && !lb; k++) { let q = n.previousElementSibling; while (q && !lb) { if (q.tagName === 'LABEL') lb = q.textContent; q = q.previousElementSibling; } n = n.parentElement; }
+  if (el.dataset.cap) lb = 'Pie de foto';
+  const sec = el.closest('.secx'); const st = sec && sec.querySelector('.stit');
+  return (st ? st.textContent + ' · ' : '') + (lb || 'Texto').replace(/\s*\(.*\)\s*$/, '');
+}
+async function spRun(){
+  const body = $('spBody');
+  $('spModal').hidden = false; document.body.classList.add('noscroll');
+  body.innerHTML = '<p class="muted">Revisando… (la primera vez tarda unos segundos)</p>';
+  const fields = spFields(), occ = {};
+  fields.forEach(el => { (el.value.match(WRE) || []).forEach(w => {
+    if (w.length < 2 || (w.length > 1 && w === w.toUpperCase()) || spIgn.has(w)) return;
+    (occ[w] = occ[w] || []).push(el);
+  }); });
+  const r = await spAsk(Object.keys(occ), spDic());
+  if (r.err) { body.innerHTML = '<p style="color:var(--warn)">No se pudo cargar el diccionario. Abre la app una vez con señal para descargarlo.</p>'; return; }
+  const bad = Object.keys(r.bad);
+  if (!bad.length) { body.innerHTML = '<p style="color:var(--ok);font-size:15px">✓ No se encontraron errores de ortografía.</p>'; return; }
+  body.innerHTML = `<p class="muted" style="margin-top:0">${bad.length} palabra(s) para revisar. Toca la corrección o agrégala al diccionario si está bien escrita.</p>` + bad.map(w => {
+    const el = occ[w][0], v = el.value, i = v.search(new RegExp('(^|[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ])' + w + '(?![A-Za-zÁÉÍÓÚÜÑáéíóúüñ])'));
+    const a = Math.max(0, i - 30), ctx = (a ? '…' : '') + esc(v.slice(a, i + w.length + 32)).replace(new RegExp('(^|[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ])(' + w + ')(?![A-Za-zÁÉÍÓÚÜÑáéíóúüñ])'), '$1<b>$2</b>') + '…';
+    return `<div class="spi" data-spw="${esc(w)}"><div class="w">${esc(w)}</div><div class="ctx">${esc(spLabel(el))}${occ[w].length > 1 ? ' (+' + (occ[w].length - 1) + ')' : ''}: ${ctx}</div>
+      <div class="ch">${r.bad[w].map(sg => `<button class="sm sg" data-spfix="${esc(sg)}">${esc(sg)}</button>`).join('')}<button class="sm" data-spadd="1">+ Diccionario</button><button class="sm" data-spign="1">Ignorar</button></div></div>`;
+  }).join('');
+  spRun.occ = occ;
+}
+$('spBtn').onclick = spRun;
+$('spClose').onclick = () => { $('spModal').hidden = true; document.body.classList.remove('noscroll'); };
+$('spBody').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const box = b.closest('.spi'), w = box.dataset.spw;
+  if (b.dataset.spfix != null) {
+    const re = new RegExp('(^|[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ])' + w + '(?![A-Za-zÁÉÍÓÚÜÑáéíóúüñ])', 'g');
+    let fx = b.dataset.spfix; if (w[0] === w[0].toUpperCase() && fx[0] === fx[0].toLowerCase()) fx = fx[0].toUpperCase() + fx.slice(1);
+    [...new Set(spRun.occ[w] || [])].forEach(el => { if (!el.isConnected) return; el.value = el.value.replace(re, '$1' + fx); el.dispatchEvent(new Event('input', { bubbles: true })); });
+  } else if (b.dataset.spadd) { const d = spDic(); if (!d.includes(w)) { d.push(w); LS.set('it_dic', d); } }
+  else if (b.dataset.spign) spIgn.add(w);
+  box.remove();
+  if (!$('spBody').querySelector('.spi')) $('spBody').innerHTML = '<p style="color:var(--ok);font-size:15px">✓ Revisión terminada.</p>';
+});
 // ---- dictado por voz ----
 let dict = null, dictTarget = null, dictBtn = null;
 const MIC_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>';
