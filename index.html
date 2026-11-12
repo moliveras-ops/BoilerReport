@@ -137,6 +137,14 @@ body.noscroll{overflow:hidden}
 .tpv{border-collapse:collapse;width:100%;margin-top:8px;font-size:13px;table-layout:fixed}
 .tpv th,.tpv td{border:1px solid var(--line);padding:5px 3px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tpv th{background:#eef2f7;font-weight:600}
+.inflist{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.infi{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;text-align:left;width:100%;margin:0}
+.infi .nm{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.infi .dt{font-size:12px;color:var(--mut)}
+.infi .tx{flex:1;min-width:0}
+.infi.cur{border:2px solid var(--acc);background:var(--acc2)}
+.infi .tag{flex:none;font-size:11px;font-weight:600;color:#fff;background:var(--acc);border-radius:20px;padding:3px 8px}
+.infi .go{flex:none;color:var(--acc);font-weight:600;font-size:13px}
 .tblx{margin-top:10px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px}
 .tblx .tscroll table{min-width:0}
 .tblx .tscroll table{width:100%;table-layout:fixed}
@@ -180,7 +188,9 @@ details.secd[open] > summary{margin-bottom:4px}
 <main>
 <div id="tab-datos">
   <section class="card" id="infCard">
-    <div class="row"><select id="infSel"></select><button class="sm" id="infNew">+ Nuevo</button></div>
+    <div class="row" style="justify-content:space-between;align-items:center"><b style="font-size:15px">Mis informes</b><button class="sm" id="infNew" style="width:auto;font-weight:600;color:var(--acc);border-color:var(--acc)">+ Nuevo informe</button></div>
+    <select id="infSel" hidden></select>
+    <div id="infList" class="inflist"></div>
     <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="sm" id="infExp">Exportar</button><button class="sm" id="infImp">Importar</button><button class="sm" id="infDrive">☁ Respaldo a Drive</button><span style="flex:1"></span><button class="x" id="infDel">Eliminar</button></div>
     <input type="file" id="infFile" accept=".json,.txt,application/json,text/plain" hidden>
     <div id="syncBox" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
@@ -2118,7 +2128,21 @@ function renderInfSel(){
   const s = $('infSel'); if (!s) return;
   infIndex.sort((a, b) => b.updated - a.updated);
   s.innerHTML = infIndex.map(x => `<option value="${esc(x.id)}" ${x.id === curId ? 'selected' : ''}>${esc(x.nombre)} · ${new Date(x.updated).toLocaleDateString('es-CL')}</option>`).join('') || '<option>Informe nuevo</option>';
+  renderInfList();
 }
+let infAll = false;
+function renderInfList(){
+  const L = $('infList'); if (!L) return;
+  const fmt = t => { const d = new Date(t); return d.toLocaleDateString('es-CL') + ' ' + d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }); };
+  const MAX = 5, list = infAll ? infIndex : infIndex.slice(0, MAX);
+  L.innerHTML = (list.length ? list.map(x => `<button type="button" class="infi${x.id === curId ? ' cur' : ''}" data-inf="${esc(x.id)}"><span class="tx"><div class="nm">${esc(x.nombre)}</div><div class="dt">Editado ${esc(fmt(x.updated))}</div></span>${x.id === curId ? '<span class="tag">Abierto</span>' : '<span class="go">Abrir ›</span>'}</button>`).join('') : '<div class="muted" style="font-size:13px">Aún no hay informes guardados.</div>')
+    + (infIndex.length > MAX ? `<button type="button" class="sm" id="infMore" style="margin:2px 0 0">${infAll ? 'Ver menos' : `Ver todos (${infIndex.length})`}</button>` : '');
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest && e.target.closest('[data-inf]');
+  if (b) { if (b.dataset.inf === curId) { showTab('editor'); return; } await flushSave(); await openInforme(b.dataset.inf); msg('genMsg', 'ok', 'Informe abierto: ' + esc((infIndex.find(x => x.id === b.dataset.inf) || {}).nombre || '')); return; }
+  if (e.target.id === 'infMore') { infAll = !infAll; renderInfList(); }
+});
 async function initInformes(){
   await IDB.open();
   infIndex = (await IDB.get('index')) || [];
