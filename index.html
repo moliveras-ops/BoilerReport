@@ -173,7 +173,8 @@ textarea{min-height:64px;padding:9px 10px}
 .genrow .pri{flex:1}
 .genbar button.sav{padding:12px 16px;font-size:15px;font-weight:600;color:var(--acc);border-color:var(--acc);background:#fff;flex-shrink:0}
 .genbar button.sav.ok{background:var(--ok);border-color:var(--ok);color:#fff}
-.genbar .msg{margin:0 0 6px;max-height:30vh;overflow:auto}
+.genbar .msg{margin:0 0 6px;max-height:22vh;overflow:auto;position:relative;padding-right:34px}
+.msgx{position:absolute;top:4px;right:4px;width:28px;height:28px;padding:0;border:0;background:transparent;font-size:16px;color:inherit;opacity:.7}
 details.secd{border-left:3px solid var(--acc)}
 details.secd > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-weight:600;font-size:14px}
 details.secd > summary::-webkit-details-marker{display:none}
@@ -368,7 +369,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 12:10</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 12:45</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -977,7 +978,7 @@ document.addEventListener('click', async e => {
   if (r === 'nosoporta') $('genMsg').insertAdjacentHTML('beforeend', '<br>Este navegador no permite enviar este archivo a Drive. Súbelo desde la app de Drive: <b>+ → Subir</b>.');
 });
 let msgT = {};
-function msg(id, cls, html){ const m = $(id); m.className = 'msg ' + (cls || ''); m.innerHTML = html || ''; clearTimeout(msgT[id]); if (id === 'genMsg' && cls === 'ok' && html && !/<a |<button/i.test(html)) msgT[id] = setTimeout(() => { m.className = 'msg'; m.innerHTML = ''; }, 6000); }
+function msg(id, cls, html){ const m = $(id); m.className = 'msg ' + (cls || ''); m.innerHTML = (html && id === 'genMsg' ? '<button type="button" class="msgx" aria-label="Cerrar">✕</button>' : '') + (html || ''); clearTimeout(msgT[id]); if (id === 'genMsg' && cls === 'ok' && html && !/<a |<button/i.test(html)) msgT[id] = setTimeout(() => { m.className = 'msg'; m.innerHTML = ''; }, 6000); }
 
 async function loadFile(f){
   const ext = f.name.split('.').pop().toLowerCase();
@@ -1265,6 +1266,9 @@ function renderEdDatos(){
   if (o.type === 'date') o.dispatchEvent(new Event('change', { bubbles: true }));
   edDatosSum();
 }));
+// el aviso de abajo no estorba: se cierra con ✕ o al empezar a escribir
+$('genMsg').addEventListener('click', e => { if (e.target.closest('.msgx')) msg('genMsg'); });
+document.addEventListener('focusin', e => { const t = e.target; if (t.matches && t.matches('textarea, input[type=text], input:not([type])') && $('genMsg').innerHTML) msg('genMsg'); });
 // ---- dictado por voz ----
 let dict = null, dictTarget = null, dictBtn = null;
 const MIC_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>';
