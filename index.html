@@ -21,6 +21,8 @@ header h1{margin:0;font-size:17px;font-weight:600}
 header p{margin:0;opacity:.8;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 main{max-width:720px;margin:0 auto 90px;padding:0 8px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:8px}
+.efbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}.efbar .saved{margin:0;flex:1}.efbar button{flex:none;padding:6px 12px}
+.ef > summary{font-size:15px}.ef[open] > summary{margin-bottom:8px}
 .card h2{margin:0 0 8px;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--acc);color:#fff;font-size:12px}
 label{display:block;font-size:12px;font-weight:500;color:var(--mut);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.03em}
@@ -107,6 +109,15 @@ body.has-dict .micw{display:flex}
 .fold summary{display:grid;grid-template-columns:1fr auto;color:var(--ink)}
 .fold summary::after{grid-column:2;grid-row:1}
 .fold summary .muted{font-weight:400;font-size:12px;grid-column:1/3;grid-row:2;text-align:left;margin-top:2px}
+.tblf > summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-weight:600;font-size:14px}
+.tblf > summary::-webkit-details-marker,.cfold > summary::-webkit-details-marker{display:none}
+.tblf > summary::after,.cfold > summary::after{content:'▾';color:var(--mut)}
+.tblf[open] > summary::after,.cfold[open] > summary::after{content:'▴'}
+.tblf > summary .muted{grid-column:1/3;font-weight:400;font-size:12px}
+.tblf[open] > summary{margin-bottom:6px}
+.cfold > summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px}
+.cfold > summary b{font-size:14px}
+.tnote{font-size:12px;color:var(--warn);margin-top:6px}
 .tblx{margin-top:10px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px}
 .tblx .tscroll table{min-width:0}
 .tblx .tscroll table{width:100%;table-layout:fixed}
@@ -237,26 +248,32 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
 <div id="tab-editor" hidden>
-  <p class="saved" id="savedTxt"></p>
-  <section class="card">
-    <h2>1.0 Introducción</h2>
+  <div class="efbar"><p class="saved" id="savedTxt"></p><button class="sm" id="efAll">Minimizar todo</button></div>
+  <details class="card fold ef" data-ef="intro" open>
+    <summary><span>1.0 Introducción</span><span class="muted" id="fs_intro"></span></summary>
+    <div class="efb">
     <textarea id="e_intro" placeholder="Texto de la introducción. Deja una línea en blanco para separar párrafos."></textarea>
-  </section>
-  <section class="card">
-    <h2>2.0 Esquema instalación andamios</h2>
+    </div>
+  </details>
+  <details class="card fold ef" data-ef="and" open>
+    <summary><span>2.0 Esquema instalación andamios</span><span class="muted" id="fs_and"></span></summary>
+    <div class="efb">
     <div class="thumbs" id="e_andamios"></div>
     <button class="sm addb" data-addimg="andamios">+ Agregar imagen</button>
-  </section>
-  <section class="card">
-    <h2>3.0 Referencias</h2>
+    </div>
+  </details>
+  <details class="card fold ef" data-ef="ref" open>
+    <summary><span>3.0 Referencias</span><span class="muted" id="fs_ref"></span></summary>
+    <div class="efb">
     <div class="subh">3.1 Sentido de numeración de tubos</div>
     <div class="thumbs" id="e_esqNum"></div>
     <button class="sm addb" data-addimg="esqNum">Cargar esquema</button>
     <div class="subh" style="margin-top:14px">3.2 Partes y componentes</div>
     <div class="thumbs" id="e_esqPartes"></div>
     <button class="sm addb" data-addimg="esqPartes">Cargar esquema</button>
-  </section>
-  <details class="card fold" id="techFold">
+    </div>
+  </details>
+  <details class="card fold ef" data-ef="tech" id="techFold">
     <summary><span>3.3 Espesores y 3.4 Ficha técnica</span><span class="muted" id="techSum"></span></summary>
   <div class="sub" style="background:#fff">
     <div class="subh" style="margin-bottom:8px">Datos técnicos del equipo</div>
@@ -275,23 +292,29 @@ details.secd[open] > summary{margin-bottom:4px}
     <div class="ficha" id="e_ficha"></div>
   </div>
   </details>
-  <section class="card">
-    <h2>4.0 Resumen ejecutivo · Reportes RER</h2>
+  <details class="card fold ef" data-ef="rer" open>
+    <summary><span>4.0 Resumen ejecutivo · Reportes RER</span><span class="muted" id="fs_rer"></span></summary>
+    <div class="efb">
     <button class="sm" id="rerPdfBtn" style="width:100%;background:var(--acc2);border-color:var(--acc);color:var(--acc);font-weight:600">Cargar RER desde PDF</button>
     <input type="file" id="rerPdf" accept="application/pdf,.pdf" multiple hidden>
     <div id="rerReview"></div>
     <div id="e_rer"></div>
     <button class="sm addb" id="addRer">+ Agregar RER</button>
-  </section>
-  <section class="card">
-    <h2>5.0 Inspección</h2>
+    </div>
+  </details>
+  <details class="card fold ef" data-ef="secs" open>
+    <summary><span>5.0 Inspección</span><span class="muted" id="fs_secs"></span></summary>
+    <div class="efb">
     <div id="e_secs"></div>
     <button class="sm addb" id="addSec">+ Agregar sección</button>
-  </section>
-  <section class="card">
-    <h2>6.0 Recomendaciones</h2>
+    </div>
+  </details>
+  <details class="card fold ef" data-ef="rec" open>
+    <summary><span>6.0 Recomendaciones</span><span class="muted" id="fs_rec"></span></summary>
+    <div class="efb">
     <textarea id="e_rec" placeholder="Una recomendación por línea"></textarea>
-  </section>
+    </div>
+  </details>
   <button class="sm" id="clearDraft" style="width:100%;margin-bottom:12px">Nuevo informe (borrar borrador)</button>
   <input type="file" id="imgFile" accept="image/*" multiple hidden>
   <input type="file" id="ocrFile" accept="image/jpeg,image/png,image/webp" multiple hidden>
@@ -1094,12 +1117,13 @@ function addMics(){
   if (dictTarget && !dictTarget.isConnected) stopDict();
 }
 function setMicUI(on){
-  document.querySelectorAll('.mic').forEach(b => { b.classList.remove('on'); b.innerHTML = MIC_SVG + 'Dictar'; });
+  document.querySelectorAll('.mic').forEach(b => { b.classList.remove('on'); b.innerHTML = MIC_SVG + (b.dataset.lbl || 'Dictar'); });
   document.querySelectorAll('.partial').forEach(p => p.textContent = '');
   if (on && dictBtn && dictBtn.isConnected) { dictBtn.classList.add('on'); dictBtn.innerHTML = MIC_SVG + 'Detener'; }
 }
 function stopDict(){ if (dict) dict.stop().catch(() => {}); }
 function applySpoken(ta, text){
+  if (ta && ta.tbl) { applyTableSpeech(ta.tbl[0], ta.tbl[1], text); return; }
   let t = text.replace(/\s*\b(nueva l[ií]nea|punto aparte)\b[.,]?\s*/gi, '\n');
   let v = ta.value;
   if (!v || /\n$/.test(v)) t = t.replace(/^ +/, '');
@@ -1108,8 +1132,8 @@ function applySpoken(ta, text){
 }
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('.mic'); if (!b || !dict) return;
-  const ta = b.parentElement.previousElementSibling;
-  if (dict.active() && dictTarget === ta) { stopDict(); return; }
+  const ta = b.dataset.tmic ? { tbl: b.dataset.tmic.split(':').map(Number), key: b.dataset.tmic, isConnected: true } : b.parentElement.previousElementSibling;
+  if (dict.active() && dictTarget && (dictTarget === ta || (ta.key && dictTarget.key === ta.key))) { stopDict(); return; }
   if (dict.active()) stopDict();
   dictTarget = ta; dictBtn = b;
   b.classList.add('on'); b.innerHTML = MIC_SVG + 'Activando…';
@@ -1166,7 +1190,29 @@ else if (SR) {
   d.onFinal(({ text }) => { if (dictTarget && dictTarget.isConnected) applySpoken(dictTarget, text); });
 }
 
+// ---- Editor: tarjetas plegables ----
+const efs = () => [...document.querySelectorAll('#tab-editor details.ef')];
+function efSave(){ const o = {}; efs().forEach(d => o[d.dataset.ef] = d.open); LS.set('it_folds', o); }
+function efBtn(){ const b = $('efAll'); if (b) b.textContent = efs().some(d => d.open) ? 'Minimizar todo' : 'Expandir todo'; }
+(() => { const o = LS.get('it_folds', null); if (o) efs().forEach(d => { if (o[d.dataset.ef] != null) d.open = !!o[d.dataset.ef]; }); efBtn(); })();
+document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('ef')) { efSave(); efBtn(); } }, true);
+$('efAll').onclick = () => { const any = efs().some(d => d.open); efs().forEach(d => d.open = !any); efSave(); efBtn(); };
+function openTo(el){ for (let d = el && el.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true; }
+function renderFoldSums(){
+  const set = (k, t) => { const e = $('fs_' + k); if (e) e.textContent = t; };
+  const n = (x, a, b) => x + ' ' + (x === 1 ? a : b);
+  const pr = s => String(s || '').split(/\n\s*\n/).filter(x => x.trim()).length;
+  set('intro', draft.intro.trim() ? n(pr(draft.intro), 'párrafo', 'párrafos') : 'Vacío');
+  set('and', n(draft.andamios.length, 'imagen', 'imágenes'));
+  set('ref', n((draft.esqNum ? 1 : 0) + (draft.esqPartes ? 1 : 0), 'esquema', 'esquemas') + ' de 2');
+  set('rer', n(draft.rer.length, 'RER', 'RER'));
+  const f = draft.secciones.reduce((a, s) => a + (s.fotos || []).length, 0), t = draft.secciones.reduce((a, s) => a + (s.tablas || []).length, 0);
+  set('secs', n(draft.secciones.length, 'sección', 'secciones') + ' · ' + n(f, 'foto', 'fotos') + (t ? ' · ' + n(t, 'tabla', 'tablas') : ''));
+  const r = draft.recomendaciones.split('\n').filter(x => x.trim()).length;
+  set('rec', r ? n(r, 'recomendación', 'recomendaciones') : 'Vacío');
+}
 function renderEditor(){
+  renderFoldSums();
   draft.secciones.forEach(s => (s.tablas || []).forEach(t => { if (t.color === undefined) t.color = newColor(s, t); }));
   $('e_intro').value = draft.intro;
   $('e_rec').value = draft.recomendaciones;
@@ -1195,14 +1241,15 @@ function renderEditor(){
     `<datalist id="zonasList">${[...new Set(draft.secciones.map(s => s.zona).filter(Boolean).concat(['Hogar Bajo','Hogar Alto','Sobrecalentador Primario','Sobrecalentador Secundario','Banco Generador','Economizador','Precalentador de Aire Primario']))].map(z => `<option value="${esc(z)}">`).join('')}</datalist>`;
   renderEq();
   addMics();
+  if (dictTarget && dictTarget.key) { const b = document.querySelector(`[data-tmic="${dictTarget.key}"]`); if (b) { dictBtn = b; if (dict && dict.active()) setMicUI(true); } else stopDict(); }
 }
 
 // ---- edición ----
 const tabEd = $('tab-editor');
 tabEd.addEventListener('input', e => {
   const d = e.target.dataset;
-  if (e.target.id === 'e_intro') draft.intro = e.target.value;
-  else if (e.target.id === 'e_rec') draft.recomendaciones = e.target.value;
+  if (e.target.id === 'e_intro') { draft.intro = e.target.value; renderFoldSums(); }
+  else if (e.target.id === 'e_rec') { draft.recomendaciones = e.target.value; renderFoldSums(); }
   else if (d.esp) { const [i, j] = d.esp.split(':'); draft.espesores[+i][+j] = e.target.value; markManual(); renderTechSum(); }
   else if (d.ficha) { draft.ficha[+d.ficha] = e.target.value; markManual(); renderTechSum(); }
   else if (d.rer) { const [i, k] = d.rer.split(':'); draft.rer[+i][k] = e.target.value; }
@@ -1345,8 +1392,7 @@ function renderChk(){
 $('chk').onclick = e => {
   const li = e.target.closest('li'); if (!li || !li.dataset.go) return;
   const [tab, id] = li.dataset.go.split(':'); showTab(tab);
-  if (/^e_(esp|ficha)$/.test(id)) $('techFold').open = true;
-  const el = id && $(id); if (el) { el.scrollIntoView({ block: 'center' }); if (el.focus) el.focus({ preventScroll: true }); }
+  const el = id && $(id); if (el) { openTo(el); el.scrollIntoView({ block: 'center' }); if (el.focus) el.focus({ preventScroll: true }); }
 };
 $('dlTpl').onclick = async () => {
   const bin = atob(BUILTIN_B64); const u = new Uint8Array(bin.length);
@@ -1373,7 +1419,7 @@ $('rerPdf').onchange = async e => {
     } catch(err){ console.error(err); pend.push({ file: f.name, error: (err && err.message) || 'No se pudo leer el PDF' }); }
   }
   renderReview();
-  $('rerReview').scrollIntoView({ block: 'start' });
+  openTo($('rerReview')); $('rerReview').scrollIntoView({ block: 'start' });
 };
 function guessZona(comp){
   const c = (comp || '').toLowerCase();
@@ -1436,16 +1482,77 @@ let sample = null, sampleOk = false, ocrSec = null;
     if (lim && lim.images) { sample = s; sampleOk = true; renderEditor(); }
   }).catch(() => {});
 })(0);
+// columnas: la primera es "punto" si su encabezado lo indica; las de espesor llevan teclado numérico
+const isPtCol = h => /^\s*(punto|pto|n[°º.]?|nro|tubo|#)\b/i.test(String(h || ''));
+function numCols(t){ const c = t.color && t.color.on ? (t.color.cols || []) : []; return t.cols.map((h, j) => j).filter(j => c.includes(j) || /espesor|mm\b|lectura/i.test(t.cols[j] || '')); }
+function valCol(t){ const c = numCols(t); return c.length ? c[0] : t.cols.length - 1; }
+function tblSum(t){
+  const rows = t.rows.filter(r => r.some(v => String(v || '').trim())).length;
+  let x = `${rows} ${rows === 1 ? 'fila' : 'filas'}`;
+  if (t.color && t.color.on) { const rs = resumenColor(t.cols, t.rows, t.color); if (rs.min) x += ` · mín ${fmtN(rs.min.e)} mm` + (rs.cnt.r ? ` · ${rs.cnt.r} bajo mínimo` : ''); }
+  return x;
+}
+// autonumera el punto de una fila con valor y sin punto (anterior + 1)
+function autoNum(t){
+  if (!t.cols.length || !isPtCol(t.cols[0]) || t.cols.length < 2) return false;
+  let ch = false, prev = 0;
+  t.rows.forEach(r => {
+    const has = r.slice(1).some(v => String(v || '').trim());
+    if (!String(r[0] || '').trim() && has) { r[0] = String(prev + 1); ch = true; }
+    const n = parseInt(r[0], 10); if (!isNaN(n)) prev = n; else if (String(r[0] || '').trim()) prev++;
+  });
+  return ch;
+}
 function tablaUI(i, k, t){
-  const d = new Set(t.dudas || []);
-  return `<div class="tblx"><div class="subh"><input type="text" data-tt="${i}:${k}" value="${esc(t.titulo || '')}" placeholder="Título de la tabla" style="padding:7px 9px;font-size:13px"></div>
+  const d = new Set(t.dudas || []), nc = numCols(t);
+  return `<details class="tblx tblf" data-tfold="${i}:${k}" ${t.plegada ? '' : 'open'}><summary><span>📋 ${esc(t.titulo || 'Tabla sin título')}</span><span class="muted" id="ts_${i}_${k}">${esc(tblSum(t))}</span></summary>
+    <div class="subh"><input type="text" data-tt="${i}:${k}" value="${esc(t.titulo || '')}" placeholder="Título de la tabla" style="padding:7px 9px;font-size:13px"></div>
     <div class="tscroll" style="margin-top:6px"><table style="min-width:${t.cols.length * 104 + 30}px"><tr>${t.cols.map((c, j) => `<th><input type="text" data-tc="${i}:${k}:${j}" value="${esc(c)}"></th>`).join('')}<th class="del"></th></tr>
-    ${t.rows.map((r, ri) => `<tr>${r.map((v, j) => `<td class="${d.has(ri + ':' + j) ? 'dud' : ''}"><input type="text" data-tv="${i}:${k}:${ri}:${j}" value="${esc(v)}" ${cellStyle(t, v, j)}></td>`).join('')}<td class="del"><button class="x" style="padding:4px 2px" data-trdel="${i}:${k}:${ri}">✕</button></td></tr>`).join('')}</table></div>
+    ${t.rows.map((r, ri) => `<tr>${r.map((v, j) => `<td class="${d.has(ri + ':' + j) ? 'dud' : ''}"><input type="text" data-tv="${i}:${k}:${ri}:${j}" value="${esc(v)}" enterkeyhint="next" ${nc.includes(j) || (j === 0 && isPtCol(t.cols[0])) ? 'inputmode="decimal"' : ''} ${cellStyle(t, v, j)}></td>`).join('')}<td class="del"><button class="x" style="padding:4px 2px" data-trdel="${i}:${k}:${ri}">✕</button></td></tr>`).join('')}</table></div>
+    <div class="muted" style="font-size:12px;margin-top:4px">«Enter» pasa a la fila siguiente. Puedes pegar celdas copiadas desde Excel.</div>
     ${d.size ? `<div class="warn" style="font-size:12px;color:var(--warn);margin-top:6px">⚠ ${d.size} celda(s) dudosa(s) en amarillo: revísalas. Se desmarcan al editarlas.</div>` : ''}
     ${t.notas ? `<div class="muted" style="font-size:12px;margin-top:6px">Notas de la hoja: ${esc(t.notas)}</div>` : ''}
+    <div class="tacts"><button class="sm" data-trow="${i}:${k}">+ Fila</button><span class="partial"></span><button type="button" class="sm mic micT" data-tmic="${i}:${k}" data-lbl="Dictar valores">${MIC_SVG}Dictar valores</button><button class="sm" data-tpaste="${i}:${k}">Pegar desde Excel</button></div>
     ${colorUI(i, k, t)}
     <label>Texto después de la tabla (opcional)</label><textarea data-tdesp="${i}:${k}" placeholder="Un párrafo por línea. Empieza con “-” para viñetas.">${esc(t.despues || '')}</textarea>
-    <div class="tacts"><button class="sm" data-trow="${i}:${k}">+ Fila</button><button class="sm" data-tcol="${i}:${k}">+ Columna</button><button class="sm" data-tcsv="${i}:${k}">CSV</button><button class="x" data-tdel="${i}:${k}">Quitar tabla</button></div></div>`;
+    <div class="tacts"><button class="sm" data-tcol="${i}:${k}">+ Columna</button><button class="sm" data-tcsv="${i}:${k}">CSV</button><button class="x" data-tdel="${i}:${k}">Quitar tabla</button></div></details>`;
+}
+function tblRefreshSum(i, k){ const e = $(`ts_${i}_${k}`); if (e) e.textContent = tblSum(draft.secciones[i].tablas[k]); renderFoldSums(); }
+function focusCell(i, k, r, j){ const el = document.querySelector(`[data-tv="${i}:${k}:${r}:${j}"]`); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); } }
+// pegar una grilla (Excel/Sheets: tabulaciones y saltos de línea) desde la celda r,j
+function pasteGrid(i, k, r, j, text){
+  const t = draft.secciones[i].tablas[k];
+  const g = String(text).replace(/\r/g, '').replace(/\n+$/, '').split('\n').map(l => l.split('\t').map(v => v.trim()));
+  if (!g.length) return;
+  const w = Math.max(...g.map(x => x.length));
+  while (t.cols.length < j + w) { t.cols.push(''); t.rows.forEach(x => x.push('')); }
+  g.forEach((line, a) => { while (t.rows.length <= r + a) t.rows.push(t.cols.map(() => '')); line.forEach((v, b) => { t.rows[r + a][j + b] = v; }); });
+  t.dudas = []; autoNum(t); renderEditor(); touch();
+}
+// dictado: "punto 5 4,2 punto 6 4,1" o solo valores "4,2 4,1 3,9"
+const NUM_W = { cero: 0, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, dieciséis: 16, dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19, veinte: 20 };
+function speechToPairs(text){
+  let x = ' ' + String(text).toLowerCase() + ' ';
+  x = x.replace(/[a-záéíóúñ]+/g, w => NUM_W[w] != null ? String(NUM_W[w]) : w);
+  x = x.replace(/(\d+)\s*(?:coma|con)\s*(\d+)/g, '$1,$2').replace(/(\d)\.(\d)/g, '$1,$2');
+  const toks = x.match(/punto|\d+(?:,\d+)?/g) || [], out = []; let pt = null, wait = false;
+  toks.forEach(tk => {
+    if (tk === 'punto') { wait = true; return; }
+    if (wait) { pt = tk; wait = false; return; }
+    out.push({ pt, v: tk }); pt = null;
+  });
+  return out;
+}
+function applyTableSpeech(i, k, text){
+  const t = draft.secciones[i].tablas[k], j = valCol(t), pc = isPtCol(t.cols[0]) && j !== 0;
+  const pairs = speechToPairs(text); if (!pairs.length) return;
+  let last = -1;
+  pairs.forEach(({ pt, v }) => {
+    let r = pt != null && pc ? t.rows.findIndex(x => String(x[0]).trim() === pt) : -1;
+    if (r < 0) { r = t.rows.findIndex((x, n) => n > last && !String(x[j] || '').trim()); if (r < 0) { t.rows.push(t.cols.map(() => '')); r = t.rows.length - 1; } }
+    t.rows[r][j] = v; if (pt != null && pc) t.rows[r][0] = pt; last = r;
+  });
+  autoNum(t); renderEditor(); touch();
 }
 tabEd.addEventListener('input', e => {
   const d = e.target.dataset;
@@ -1462,7 +1569,11 @@ tabEd.addEventListener('click', async e => {
   const d = e.target.dataset;
   const T = s => { const [i, k] = s.split(':'); return draft.secciones[+i].tablas[+k]; };
   if (d.tnew != null) { const s = draft.secciones[+d.tnew]; const t = { titulo: 'Mediciones de espesores', cols: ['Punto', 'Espesor (mm)'], rows: [['', ''], ['', ''], ['', '']], dudas: [] }; t.color = newColor(s, t); t.color.cols = [1]; (s.tablas = s.tablas || []).push(t); }
-  else if (d.trow) { const t = T(d.trow); t.rows.push(t.cols.map(() => '')); }
+  else if (d.trow) { const t = T(d.trow); t.rows.push(t.cols.map(() => '')); const [i, k] = d.trow.split(':'); renderEditor(); touch(); focusCell(+i, +k, t.rows.length - 1, valCol(t)); return; }
+  else if (d.tpaste) { const [i, k] = d.tpaste.split(':').map(Number); const t = T(d.tpaste);
+    try { const txt = await navigator.clipboard.readText(); if (!txt.trim()) throw 0; const r0 = t.rows.findIndex(x => !x.some(v => String(v || '').trim())); pasteGrid(i, k, r0 < 0 ? t.rows.length : r0, 0, txt); }
+    catch(err){ msg('genMsg', 'warn', 'No se pudo leer el portapapeles. Mantén presionada una celda de la tabla y elige «Pegar».'); }
+    return; }
   else if (d.tcol) { const t = T(d.tcol); t.cols.push(''); t.rows.forEach(r => r.push('')); }
   else if (d.trdel) { const [i, k, r] = d.trdel.split(':'); const t = draft.secciones[+i].tablas[+k]; t.rows.splice(+r, 1); t.dudas = (t.dudas || []).filter(x => +x.split(':')[0] !== +r).map(x => { const [a, b] = x.split(':'); return (+a > +r ? +a - 1 : +a) + ':' + b; }); }
   else if (d.tdel) { if (!confirmInline(e.target)) return; const [i, k] = d.tdel.split(':'); draft.secciones[+i].tablas.splice(+k, 1); }
@@ -1558,11 +1669,20 @@ function colorUI(i, k, t){
   const c = t.color;
   if (!c || !c.on) return `<button class="sm" data-con="${i}:${k}" style="margin-top:8px;width:100%;${isEspTabla(t) ? 'border-color:var(--acc);color:var(--acc);font-weight:600' : ''}">🎨 Agregar colorimetría de espesores</button>`;
   if (c.talerta == null) c.talerta = alertaDef(c.tmin);
-  return `<div class="sub" style="background:#fff;margin-top:8px"><div class="subh"><span>🎨 Colorimetría (mm)</span><button class="x" data-coff="${i}:${k}">Quitar</button></div>
+  const refs = draft.espesores.map((r, j) => [r, j]).filter(([r]) => String(r[3] || '').trim() || String(r[4] || '').trim());
+  return `<details class="sub cfold" data-cfold="${i}:${k}" style="background:#fff;margin-top:8px" ${c.abierta ? 'open' : ''}><summary><b>🎨 Colorimetría</b><span class="muted" id="cs_${i}_${k}">${esc(colorSum(t))}</span></summary>
+    <div style="text-align:right;margin-top:4px"><button class="x" data-coff="${i}:${k}">Quitar colorimetría</button></div>
     ${barHTML(i, k, c)}
-    <label>Tomar valores de la tabla 3.3</label><select data-cref="${i}:${k}"><option value="-1">— Valores ingresados a mano —</option>${draft.espesores.map((r, j) => `<option value="${j}" ${+c.ref === j ? 'selected' : ''}>${esc(r[0] || 'Fila ' + (j + 1))} · nom ${esc(r[3] || '–')} · mín ${esc(r[4] || '–')}</option>`).join('')}</select>
+    <label>Tomar valores de la tabla 3.3</label>${refs.length ? `<select data-cref="${i}:${k}"><option value="-1">— Valores ingresados a mano —</option>${refs.map(([r, j]) => `<option value="${j}" ${+c.ref === j ? 'selected' : ''}>${esc(r[0] || 'Fila ' + (j + 1))} · nom ${esc(r[3] || '–')} · mín ${esc(r[4] || '–')}</option>`).join('')}</select>`
+      : `<div class="tnote">La tabla 3.3 no tiene espesores nominal ni mínimo cargados. Llénala o carga un equipo guardado para tomar los valores de ahí.</div><button class="sm" data-gotech="1" style="margin-top:6px">Ir a la tabla 3.3</button>`}
     <label>Columnas con espesores</label><div class="chips">${t.cols.map((h, j) => `<button class="sm" data-ccol="${i}:${k}:${j}" style="padding:5px 9px;${(c.cols || []).includes(j) ? 'background:var(--acc);color:#fff;border-color:var(--acc)' : ''}">${esc(h || 'Col ' + (j + 1))}</button>`).join('')}</div>
-    <div id="cl_${i}_${k}">${colorInfo(t)}</div></div>`;
+    <div id="cl_${i}_${k}">${colorInfo(t)}</div></details>`;
+}
+function colorSum(t){
+  const c = t.color, f = v => String(v || '').trim() || '–';
+  let x = `mín ${f(c.tmin)} · alerta ${f(c.talerta)} · nom ${f(c.tnom)}`;
+  const rs = resumenColor(t.cols, t.rows, c); if (rs.cnt.r) x += ` · ${rs.cnt.r} bajo mínimo`;
+  return x;
 }
 function colorInfo(t){
   const c = t.color, rs = resumenColor(t.cols, t.rows, c);
@@ -1594,10 +1714,13 @@ function refreshColors(i, k){
     const m = /style="([^"]*)"/.exec(st); inp.setAttribute('style', m ? m[1] : '');
   });
   const box = $(`cl_${i}_${k}`); if (box) box.innerHTML = colorInfo(t);
+  const sm = $(`cs_${i}_${k}`); if (sm) sm.textContent = colorSum(t);
+  tblRefreshSum(i, k);
 }
 tabEd.addEventListener('click', e => {
   const d = e.target.dataset; const T = s => { const [i, k] = s.split(':'); return [draft.secciones[+i], draft.secciones[+i].tablas[+k]]; };
-  if (d.con) { const [s, t] = T(d.con); t.color = newColor(s, t); }
+  if (d.gotech) { $('techFold').open = true; openTo($('e_esp')); $('e_esp').scrollIntoView({ block: 'center' }); return; }
+  if (d.con) { const [s, t] = T(d.con); t.color = newColor(s, t); t.color.abierta = true; }
   else if (d.coff) { const [, t] = T(d.coff); t.color.on = false; }
   else if (d.ccol) { const [i, k, j] = d.ccol.split(':'); const c = draft.secciones[+i].tablas[+k].color; const x = +j; c.cols = c.cols.includes(x) ? c.cols.filter(y => y !== x) : c.cols.concat(x); }
   else return;
@@ -1611,7 +1734,31 @@ tabEd.addEventListener('input', e => {
   const d = e.target.dataset; if (!d.cf) return;
   const [i, k, f] = d.cf.split(':'); const c = draft.secciones[+i].tablas[+k].color; c[f] = e.target.value; if (f === 'tnom' || f === 'tmin') { c.ref = -1; c.refName = ''; const sel = document.querySelector(`[data-cref="${i}:${k}"]`); if (sel) sel.value = '-1'; } refreshColors(+i, +k); touch();
 });
-tabEd.addEventListener('input', e => { const d = e.target.dataset; if (!d.tv) return; const [i, k] = d.tv.split(':').map(Number); refreshColors(i, k); });
+tabEd.addEventListener('input', e => { const d = e.target.dataset; if (!d.tv) return; const [i, k] = d.tv.split(':').map(Number); refreshColors(i, k); tblRefreshSum(i, k); });
+// al salir de una celda: autonumerar el punto
+tabEd.addEventListener('change', e => {
+  const d = e.target.dataset; if (!d.tv) return; const [i, k] = d.tv.split(':').map(Number); const t = draft.secciones[i].tablas[k];
+  if (autoNum(t)) { t.rows.forEach((r, ri) => { const el = document.querySelector(`[data-tv="${i}:${k}:${ri}:0"]`); if (el && el.value !== r[0]) el.value = r[0]; }); touch(); }
+});
+// Enter: baja a la fila siguiente (crea una nueva si es la última)
+tabEd.addEventListener('keydown', e => {
+  const d = e.target.dataset; if (!d.tv || e.key !== 'Enter') return; e.preventDefault();
+  const [i, k, r, j] = d.tv.split(':').map(Number); const t = draft.secciones[i].tablas[k];
+  const ch = autoNum(t);
+  if (r + 1 >= t.rows.length) { t.rows.push(t.cols.map(() => '')); renderEditor(); touch(); }
+  else if (ch) { renderEditor(); touch(); }
+  focusCell(i, k, r + 1, j);
+});
+tabEd.addEventListener('paste', e => {
+  const d = e.target.dataset; if (!d.tv) return; const txt = (e.clipboardData || window.clipboardData).getData('text');
+  if (!/[\t\n]/.test(txt.replace(/\n+$/, ''))) return; e.preventDefault();
+  const [i, k, r, j] = d.tv.split(':').map(Number); pasteGrid(i, k, r, j, txt);
+});
+document.addEventListener('toggle', e => {
+  const el = e.target; if (!el.dataset) return;
+  if (el.dataset.tfold) { const [i, k] = el.dataset.tfold.split(':').map(Number); const t = draft.secciones[i] && draft.secciones[i].tablas[k]; if (t && !!t.plegada !== !el.open) { t.plegada = !el.open; touch(); } }
+  if (el.dataset.cfold) { const [i, k] = el.dataset.cfold.split(':').map(Number); const t = draft.secciones[i] && draft.secciones[i].tablas[k]; if (t && t.color && !!t.color.abierta !== el.open) { t.color.abierta = el.open; touch(); } }
+}, true);
 
 document.addEventListener('toggle', e => { const d = e.target.dataset; if (d && d.rerfold != null) { const i = +d.rerfold; if (e.target.open) openRer.add(i); else openRer.delete(i); } }, true);
 
