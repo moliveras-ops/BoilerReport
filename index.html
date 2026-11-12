@@ -127,6 +127,7 @@ body.has-dict .micw{display:flex}
 .secx .ssum{display:none;font-size:12px;margin-top:2px;cursor:pointer}
 .secx.pleg .ssum{display:block}
 .secx.pleg .secb{display:none}
+.blk{border-top:1px dashed var(--line);margin-top:12px;padding-top:8px}
 .tmodal{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column}
 .tmodal[hidden]{display:none}
 .tmhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--card);border-bottom:1px solid var(--line);font-size:15px}
@@ -356,7 +357,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 11:45</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 11:55</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -660,7 +661,7 @@ async function buildEditor(zip, draft, Parser, Serializer){
     insAfter(rerProto, ns); rerProto.parentNode.removeChild(rerProto);
   }
   // 6. Inspección
-  const secs = (draft.secciones || []).filter(s => s.zona || s.comp || s.hallazgos || s.post || (s.fotos || []).length || (s.tablas || []).length);
+  const secs = (draft.secciones || []).filter(s => s.zona || s.comp || s.hallazgos || s.post || allFotos(s).length || (s.tablas || []).length || (s.bloques || []).some(b => b.post));
   if (secs.length) {
     // quitar apartado modelo (todo entre el título INSPECCIÓN y RECOMENDACIONES)
     let n = hInsp.nextSibling; while (n && n !== hRec) { const nx = n.nextSibling; n.parentNode.removeChild(n); n = nx; }
@@ -713,7 +714,13 @@ async function buildEditor(zip, draft, Parser, Serializer){
           String(t.despues).split(/\n/).map(x => x.trim()).filter(Boolean).forEach(x => ns.push(/^[-•–]\s*/.test(x) ? B(x.replace(/^[-•–]\s*/, '')) : P(x)));
         }
       });
-      const fotos = (s.fotos || []).filter(f => f.img);
+      const pushPost = txt => {
+        if (!String(txt || '').trim()) return;
+        ns.push(EMPTY());
+        String(txt).split(/\n/).map(x => x.trim()).filter(Boolean).forEach(x => ns.push(/^[-•–]\s*/.test(x) ? B(x.replace(/^[-•–]\s*/, '')) : P(x)));
+      };
+      [{ fotos: s.fotos, post: s.post }].concat(s.bloques || []).forEach(blq => {
+      const fotos = (blq.fotos || []).filter(f => f.img);
       if (fotos.length) {
         ns.push(EMPTY());
         const tbl = cleanClone(tblProto); kids(tbl, 'w:tr').forEach(tr => tbl.removeChild(tr));
@@ -734,10 +741,8 @@ async function buildEditor(zip, draft, Parser, Serializer){
         }
         ns.push(tbl);
       }
-      if (String(s.post || '').trim()) {
-        ns.push(EMPTY());
-        String(s.post).split(/\n/).map(x => x.trim()).filter(Boolean).forEach(x => ns.push(/^[-•–]\s*/.test(x) ? B(x.replace(/^[-•–]\s*/, '')) : P(x)));
-      }
+      pushPost(blq.post);
+      });
     });
     ns.push(EMPTY());
     insAfter(hInsp, ns); report.push('secciones');
@@ -1158,7 +1163,7 @@ $('imgFile').onchange = async e => {
       const im = esq ? await normalizeImg(f, 2000) : await fileTo43(f);
       if (imgTarget === 'andamios') draft.andamios.push(im);
       else if (/^esq/.test(imgTarget)) draft[imgTarget] = im;
-      else if (/^sec:/.test(imgTarget)) draft.secciones[+imgTarget.split(':')[1]].fotos.push({ img: im, cap: '' });
+      else if (/^sec:/.test(imgTarget)) { const q = imgTarget.split(':'), sc = draft.secciones[+q[1]]; (q[2] != null ? sc.bloques[+q[2]].fotos : sc.fotos).push({ img: im, cap: '' }); }
     } catch(err){ console.error(err); }
   }
   renderEditor(); touch();
@@ -1166,6 +1171,7 @@ $('imgFile').onchange = async e => {
 
 // ---- render ----
 const thumb = (im, del, capKey, cap, num) => `<div class="thumb"><img src="${im.d}" alt="">${capKey != null ? `<input type="text" data-cap="${capKey}" value="${esc(cap || '')}" placeholder="Descripción de la foto">` : ''}<div class="tb"><span>${num || ''}</span><button class="x" data-del="${del}">Quitar</button></div></div>`;
+const allFotos = s => (s.fotos || []).concat(...(s.bloques || []).map(b => b.fotos || []));
 // ---- dictado por voz ----
 let dict = null, dictTarget = null, dictBtn = null;
 const MIC_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>';
@@ -1260,7 +1266,7 @@ $('efAll').onclick = () => { const any = efs().some(d => d.open); efs().forEach(
 function openTo(el){ const sx = el && el.closest && el.closest('.secx'); if (sx && sx.classList.contains('pleg')) { const i = [...$('e_secs').querySelectorAll(':scope > .secx')].indexOf(sx); if (draft.secciones[i]) draft.secciones[i].plegada = false; sx.classList.remove('pleg'); secAllBtn(); }
   for (let d = el && el.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true; }
 function secSum(s){
-  const h = String(s.hallazgos || '').split('\n').filter(x => x.trim()).length, f = (s.fotos || []).length, t = (s.tablas || []).length;
+  const h = String(s.hallazgos || '').split('\n').filter(x => x.trim()).length, f = allFotos(s).length, t = (s.tablas || []).length;
   return [h ? h + (h === 1 ? ' hallazgo' : ' hallazgos') : '', f + (f === 1 ? ' foto' : ' fotos'), t ? t + (t === 1 ? ' tabla' : ' tablas') : ''].filter(Boolean).join(' · ');
 }
 function secAllBtn(){ const b = $('secAll'); if (!b) return; b.hidden = draft.secciones.length < 2; b.textContent = draft.secciones.some(s => !s.plegada) ? 'Minimizar secciones' : 'Expandir secciones'; }
@@ -1281,7 +1287,7 @@ function renderFoldSums(){
   set('and', n(draft.andamios.length, 'imagen', 'imágenes'));
   set('ref', n((draft.esqNum ? 1 : 0) + (draft.esqPartes ? 1 : 0), 'esquema', 'esquemas') + ' de 2');
   set('rer', n(draft.rer.length, 'RER', 'RER'));
-  const f = draft.secciones.reduce((a, s) => a + (s.fotos || []).length, 0), t = draft.secciones.reduce((a, s) => a + (s.tablas || []).length, 0);
+  const f = draft.secciones.reduce((a, s) => a + allFotos(s).length, 0), t = draft.secciones.reduce((a, s) => a + (s.tablas || []).length, 0);
   set('secs', n(draft.secciones.length, 'sección', 'secciones') + ' · ' + n(f, 'foto', 'fotos') + (t ? ' · ' + n(t, 'tabla', 'tablas') : ''));
   const r = draft.recomendaciones.split('\n').filter(x => x.trim()).length;
   set('rec', r ? n(r, 'recomendación', 'recomendaciones') : 'Vacío');
@@ -1314,7 +1320,12 @@ function renderEditor(){
     <div class="row" style="margin-top:6px"><button class="sm addb" style="margin:0" data-tnew="${i}">+ Tabla manual</button>${sampleOk ? `<button class="sm addb" style="margin:0" data-ocr="${i}">Tabla desde foto (manuscrito)</button>` : ''}</div>
     <label>Fotografías</label><div class="thumbs">${s.fotos.map((f, k) => thumb(f.img, `foto:${i}:${k}`, `${i}:${k}`, f.cap, 'Fotografía N°' + (++fn))).join('')}</div>
     <button class="sm addb" data-addimg="sec:${i}">+ Agregar fotos</button>
-    <label>Texto después de las fotos (opcional)</label><textarea data-sec="${i}:post" placeholder="Un párrafo por línea. Empieza con “-” para viñetas.">${esc(s.post || '')}</textarea></div></div>`).join('') +
+    <label>Texto después de las fotos (opcional)</label><textarea data-sec="${i}:post" placeholder="Un párrafo por línea. Empieza con “-” para viñetas.">${esc(s.post || '')}</textarea>
+    ${(s.bloques || []).map((b, j) => `<div class="blk"><div class="subh"><span class="muted">Más fotos y texto ${j + 1}</span><button class="x" data-del="blk:${i}:${j}">Quitar</button></div>
+    <div class="thumbs">${b.fotos.map((f, k) => thumb(f.img, `foto:${i}:${k}:${j}`, `${i}:${k}:${j}`, f.cap, 'Fotografía N°' + (++fn))).join('')}</div>
+    <button class="sm addb" data-addimg="sec:${i}:${j}">+ Agregar fotos</button>
+    <label>Texto después de estas fotos (opcional)</label><textarea data-blk="${i}:${j}" placeholder="Un párrafo por línea. Empieza con “-” para viñetas.">${esc(b.post || '')}</textarea></div>`).join('')}
+    <button class="sm addb" data-blknew="${i}">+ Más fotos y texto</button></div></div>`).join('') +
     `<datalist id="zonasList">${[...new Set(draft.secciones.map(s => s.zona).filter(Boolean).concat(['Hogar Bajo','Hogar Alto','Sobrecalentador Primario','Sobrecalentador Secundario','Banco Generador','Economizador','Precalentador de Aire Primario']))].map(z => `<option value="${esc(z)}">`).join('')}</datalist>`;
   renderEq();
   renderTModal();
@@ -1332,7 +1343,8 @@ tabEd.addEventListener('input', e => {
   else if (d.ficha) { draft.ficha[+d.ficha] = e.target.value; markManual(); renderTechSum(); }
   else if (d.rer) { const [i, k] = d.rer.split(':'); draft.rer[+i][k] = e.target.value; }
   else if (d.sec) { const [i, k] = d.sec.split(':'); draft.secciones[+i][k] = e.target.value; }
-  else if (d.cap) { const [i, k] = d.cap.split(':'); draft.secciones[+i].fotos[+k].cap = e.target.value; }
+  else if (d.cap) { const [i, k, j] = d.cap.split(':'), sc = draft.secciones[+i]; (j != null ? sc.bloques[+j].fotos : sc.fotos)[+k].cap = e.target.value; }
+  else if (d.blk) { const [i, j] = d.blk.split(':'); draft.secciones[+i].bloques[+j].post = e.target.value; }
   else return;
   touch();
 });
@@ -1353,6 +1365,7 @@ tabEd.addEventListener('change', e => {
 tabEd.addEventListener('click', e => {
   const d = e.target.dataset;
   if (d.up != null) { const i = +d.up; if (i > 0) { const s = draft.secciones; [s[i - 1], s[i]] = [s[i], s[i - 1]]; renderEditor(); touch(); } return; }
+  if (d.blknew != null) { const sc = draft.secciones[+d.blknew]; (sc.bloques = sc.bloques || []).push({ fotos: [], post: '' }); renderEditor(); touch(); return; }
   if (d.del == null) return;
   const p = d.del.split(':');
   if (p[0] === 'andamios') draft.andamios.splice(+p[1], 1);
@@ -1360,7 +1373,8 @@ tabEd.addEventListener('click', e => {
   else if (p[0] === 'esp') draft.espesores.splice(+p[1], 1);
   else if (p[0] === 'rer') draft.rer.splice(+p[1], 1);
   else if (p[0] === 'sec') { if (!confirmInline(e.target)) return; draft.secciones.splice(+p[1], 1); }
-  else if (p[0] === 'foto') draft.secciones[+p[1]].fotos.splice(+p[2], 1);
+  else if (p[0] === 'foto') { const sc = draft.secciones[+p[1]]; (p[3] != null ? sc.bloques[+p[3]].fotos : sc.fotos).splice(+p[2], 1); }
+  else if (p[0] === 'blk') { if (!confirmInline(e.target)) return; draft.secciones[+p[1]].bloques.splice(+p[2], 1); }
   renderEditor(); touch();
 });
 function markManual(){ if (draft.equipoId && !String(draft.equipoId).startsWith('u:') || draft.equipoId) { const e = eqById(draft.equipoId); if (e) $('eqInfo').textContent = 'Basado en: ' + e.nombre + ' (modificado)'; } }
@@ -1450,8 +1464,8 @@ function renderChk(){
   if (v.CLIENTE) add(!!logos[v.CLIENTE], 'Logo del cliente', logos[v.CLIENTE] ? 'Cargado' : 'Se usará el logo de la plantilla', 'datos:cliente');
   const fichaN = draft.ficha.filter(x => x.trim()).length;
   const espN = draft.espesores.filter(r => r.slice(1).some(x => String(x).trim())).length;
-  const fotosN = draft.secciones.reduce((a, s) => a + s.fotos.length, 0);
-  const sinFotoCap = draft.secciones.reduce((a, s) => a + s.fotos.filter(f => !f.cap.trim()).length, 0);
+  const fotosN = draft.secciones.reduce((a, s) => a + allFotos(s).length, 0);
+  const sinFotoCap = draft.secciones.reduce((a, s) => a + allFotos(s).filter(f => !f.cap.trim()).length, 0);
   add(!!draft.intro.trim(), '1.0 Introducción', '', 'editor:e_intro');
   add(draft.andamios.length > 0, '2.0 Esquema de andamios', draft.andamios.length ? draft.andamios.length + ' imagen(es)' : '', 'editor:e_andamios');
   add(!!draft.esqNum, '3.1 Esquema de numeración de tubos', '', 'editor:e_esqNum');
