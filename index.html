@@ -403,7 +403,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 13:45</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 14:00</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -581,7 +581,9 @@ const NS = {
   wp: 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing',
   a: 'http://schemas.openxmlformats.org/drawingml/2006/main',
   pic: 'http://schemas.openxmlformats.org/drawingml/2006/picture',
-  r: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+  r: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+  wpg: 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup',
+  wps: 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape'
 };
 const EMU_CM = 360000;
 
@@ -604,7 +606,7 @@ function cleanClone(el){
   return c;
 }
 function frag(doc, Parser, xml){
-  const d = new Parser().parseFromString(`<root xmlns:w="${NS.w}" xmlns:wp="${NS.wp}" xmlns:a="${NS.a}" xmlns:pic="${NS.pic}" xmlns:r="${NS.r}">${xml}</root>`, 'application/xml');
+  const d = new Parser().parseFromString(`<root xmlns:w="${NS.w}" xmlns:wp="${NS.wp}" xmlns:a="${NS.a}" xmlns:pic="${NS.pic}" xmlns:r="${NS.r}" xmlns:wpg="${NS.wpg}" xmlns:wps="${NS.wps}">${xml}</root>`, 'application/xml');
   const out = []; for (let n = d.documentElement.firstChild; n; n = n.nextSibling) if (n.nodeType === 1) out.push(doc.importNode(n, true));
   return out;
 }
@@ -616,6 +618,37 @@ function b64bytes(dataUrl){
   const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u;
 }
 
+// forma de "Señalar" → forma de Word (DrawingML) editable. k = EMU por pixel de la imagen
+function annShapeXml(sh, k, W, id){
+  const E = v => Math.round(v * k);
+  const lw0 = Math.max(4, Math.round(W / 140)), lw = Math.max(2, lw0 * (sh.w || 1));
+  const col = String(sh.c || '#e01b24').replace('#', '').toUpperCase();
+  const dash = sh.d === 'dash' ? '<a:prstDash val="dash"/>' : sh.d === 'dot' ? '<a:prstDash val="sysDot"/>' : '';
+  const ln = (extra) => `<a:ln w="${E(lw)}" cap="rnd"><a:solidFill><a:srgbClr val="${col}"/></a:solidFill>${dash}<a:round/>${extra || ''}</a:ln>`;
+  const wsp = (x, y, w, h, geom, lnXml, flips, body) => `<wps:wsp><wps:cNvPr id="${id}" name="Forma ${id}"/><wps:cNvSpPr/><wps:spPr><a:xfrm${flips || ''}><a:off x="${E(x)}" y="${E(y)}"/><a:ext cx="${Math.max(1, E(w))}" cy="${Math.max(1, E(h))}"/></a:xfrm>${geom}<a:noFill/>${lnXml}</wps:spPr>${body || '<wps:bodyPr/>'}</wps:wsp>`;
+  const x = Math.min(sh.x1, sh.x2 ?? sh.x1), y = Math.min(sh.y1, sh.y2 ?? sh.y1), w = Math.abs((sh.x2 ?? sh.x1) - sh.x1), h = Math.abs((sh.y2 ?? sh.y1) - sh.y1);
+  const pg = p => `<a:prstGeom prst="${p}"><a:avLst/></a:prstGeom>`;
+  if (sh.t === 'rect') return wsp(x, y, w, h, pg('rect'), ln());
+  if (sh.t === 'rrect') return wsp(x, y, w, h, '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 22000"/></a:avLst></a:prstGeom>', ln());
+  if (sh.t === 'ellipse') return wsp(x, y, w, h, pg('ellipse'), ln());
+  if (sh.t === 'line' || sh.t === 'arrow') {
+    const fl = (sh.x2 < sh.x1 ? ' flipH="1"' : '') + (sh.y2 < sh.y1 ? ' flipV="1"' : '');
+    return wsp(x, y, w, h, pg('line'), ln(sh.t === 'arrow' ? '<a:tailEnd type="triangle" w="lg" len="lg"/>' : ''), fl);
+  }
+  if (sh.t === 'free') {
+    const xs = sh.p.map(q => q[0]), ys = sh.p.map(q => q[1]), x0 = Math.min(...xs), y0 = Math.min(...ys), pw = Math.max(1, E(Math.max(...xs) - x0)), ph = Math.max(1, E(Math.max(...ys) - y0));
+    const pts = sh.p.map((q, i) => `<a:${i ? 'lnTo' : 'moveTo'}><a:pt x="${E(q[0] - x0)}" y="${E(q[1] - y0)}"/></a:${i ? 'lnTo' : 'moveTo'}>`).join('');
+    return wsp(x0, y0, Math.max(...xs) - x0, Math.max(...ys) - y0, `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="${pw}" h="${ph}" fill="none">${pts}</a:path></a:pathLst></a:custGeom>`, ln());
+  }
+  if (sh.t === 'text') {
+    const fs = Math.max(14, Math.round(W / 22 * Math.sqrt(sh.w || 1)));
+    const hp = Math.max(8, Math.round(E(fs) / 12700 * 2 * 1.05));
+    const tw = fs * 0.62 * String(sh.s).length + fs * 0.4;
+    const body = `<wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:b/><w:color w:val="${col}"/><w:sz w:val="${hp}"/><w:szCs w:val="${hp}"/></w:rPr><w:t xml:space="preserve">${xesc(sh.s)}</w:t></w:r></w:p></w:txbxContent></wps:txbx><wps:bodyPr rot="0" vert="horz" wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr"><a:spAutoFit/></wps:bodyPr>`;
+    return wsp(sh.x1, sh.y1 - fs * 0.75, tw, fs * 1.5, pg('rect'), '<a:ln><a:noFill/></a:ln>', '', body);
+  }
+  return '';
+}
 // Construye el contenido. draft: ver estructura en la interfaz.
 async function buildEditor(zip, draft, Parser, Serializer){
   const docName = 'word/document.xml', relName = 'word/_rels/document.xml.rels';
@@ -627,12 +660,18 @@ async function buildEditor(zip, draft, Parser, Serializer){
 
   const addImage = (img, maxW, maxH, name) => {
     imgN++; docPr++;
-    const ext = /^data:image\/png/.test(img.d) ? 'png' : 'jpeg';
+    const editable = img.orig && img.ann && img.ann.length;
+    const src = editable ? img.orig : img.d;
+    const ext = /^data:image\/png/.test(src) ? 'png' : 'jpeg';
     const rid = 'rIdEd' + imgN, target = `media/ed_${imgN}.${ext}`;
-    zip.file('word/' + target, b64bytes(img.d), { createFolders: false }); nFotos++;
+    zip.file('word/' + target, b64bytes(src), { createFolders: false }); nFotos++;
     rels = rels.replace('</Relationships>', `<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${target}"/></Relationships>`);
     const [cx, cy] = fit(img.w, img.h, maxW, maxH);
-    return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${docPr}" name="${xesc(name)} ${imgN}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${docPr}" name="img${imgN}.${ext}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+    const picXml = `<pic:pic><pic:nvPicPr><pic:cNvPr id="${docPr}" name="img${imgN}.${ext}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>`;
+    if (!editable) return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${docPr}" name="${xesc(name)} ${imgN}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">${picXml}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+    // foto + formas editables en Word (grupo: la imagen original y cada forma por separado)
+    docPr++; const gid = docPr; const shapes = img.ann.map(sh => { docPr++; return annShapeXml(sh, cx / img.w, img.w, docPr); }).join('');
+    return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${gid}" name="${xesc(name)} ${imgN}"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri="${NS.wpg}"><wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/><a:chOff x="0" y="0"/><a:chExt cx="${cx}" cy="${cy}"/></a:xfrm></wpg:grpSpPr>${picXml}${shapes}</wpg:wgp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
   };
   const centerImgP = (img, maxW, maxH, name, keepNext) =>
     frag(doc, Parser, `<w:p><w:pPr>${keepNext ? '<w:keepNext/>' : ''}<w:spacing w:before="120" w:after="120"/><w:jc w:val="center"/></w:pPr>${addImage(img, maxW, maxH, name)}</w:p>`)[0];
