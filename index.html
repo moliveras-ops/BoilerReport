@@ -2268,6 +2268,7 @@ function driveToken(interactive){
 $('drvConnect') && ($('drvConnect').onclick = async () => {
   const cid = $('drvClient').value.trim();
   const d = LS.get('it_drive', {}) || {};
+  if (!window.Android && /@/.test(cid || '')) { syncStatus('Ese es tu correo, no el ID de cliente. El ID se crea en console.cloud.google.com → Credenciales y termina en .apps.googleusercontent.com. Si no quieres configurarlo, usa «☁ Respaldo a Drive».', 'err'); $('drvClient').focus(); return; }
   if (!window.Android && !/\.apps\.googleusercontent\.com$/.test(cid)) { syncStatus('Pega el ID de cliente web de Google (termina en .apps.googleusercontent.com)', 'err'); $('drvClient').focus(); return; }
   LS.set('it_drive', Object.assign(d, { clientId: cid || d.clientId, word: $('drvWord').checked }));
   drvToken = null; syncStatus('Abriendo Google…');
