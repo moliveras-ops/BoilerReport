@@ -419,7 +419,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 14:40</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 14:55</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -622,7 +622,7 @@ function cleanClone(el){
   return c;
 }
 function frag(doc, Parser, xml){
-  const d = new Parser().parseFromString(`<root xmlns:w="${NS.w}" xmlns:wp="${NS.wp}" xmlns:a="${NS.a}" xmlns:pic="${NS.pic}" xmlns:r="${NS.r}" xmlns:wpg="${NS.wpg}" xmlns:wps="${NS.wps}">${xml}</root>`, 'application/xml');
+  const d = new Parser().parseFromString(`<root xmlns:w="${NS.w}" xmlns:wp="${NS.wp}" xmlns:a="${NS.a}" xmlns:pic="${NS.pic}" xmlns:r="${NS.r}" xmlns:wpg="${NS.wpg}" xmlns:wps="${NS.wps}" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">${xml}</root>`, 'application/xml');
   const out = []; for (let n = d.documentElement.firstChild; n; n = n.nextSibling) if (n.nodeType === 1) out.push(doc.importNode(n, true));
   return out;
 }
@@ -634,22 +634,38 @@ function b64bytes(dataUrl){
   const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u;
 }
 
+// flecha: la misma geometría en la app y en Word (la punta es parte de la forma, no un extremo de línea de Word)
+function arrowGeom(s, lw, lw0){
+  const a = Math.atan2(s.y2 - s.y1, s.x2 - s.x1), hl = Math.max(lw * 4.5, lw0 * 3);
+  return { line: [[s.x1, s.y1], [s.x2 - Math.cos(a) * hl * 0.6, s.y2 - Math.sin(a) * hl * 0.6]],
+    head: [[s.x2, s.y2], [s.x2 - hl * Math.cos(a - 0.45), s.y2 - hl * Math.sin(a - 0.45)], [s.x2 - hl * Math.cos(a + 0.45), s.y2 - hl * Math.sin(a + 0.45)]] };
+}
 // forma de "Señalar" → forma de Word (DrawingML) editable. k = EMU por pixel de la imagen
 function annShapeXml(sh, k, W, id){
   const E = v => Math.round(v * k);
   const lw0 = Math.max(4, Math.round(W / 140)), lw = Math.max(2, lw0 * (sh.w || 1));
   const col = String(sh.c || '#e01b24').replace('#', '').toUpperCase();
-  const dash = sh.d === 'dash' ? '<a:prstDash val="dash"/>' : sh.d === 'dot' ? '<a:prstDash val="sysDot"/>' : '';
+  const dash = sh.d === 'dash' ? '<a:prstDash val="dash"/>' : sh.d === 'dot' ? '<a:prstDash val="dot"/>' : '';
   const ln = (extra) => `<a:ln w="${E(lw)}" cap="rnd"><a:solidFill><a:srgbClr val="${col}"/></a:solidFill>${dash}<a:round/>${extra || ''}</a:ln>`;
-  const wsp = (x, y, w, h, geom, lnXml, flips, body) => `<wps:wsp><wps:cNvPr id="${id}" name="Forma ${id}"/><wps:cNvSpPr/><wps:spPr><a:xfrm${flips || ''}><a:off x="${E(x)}" y="${E(y)}"/><a:ext cx="${Math.max(1, E(w))}" cy="${Math.max(1, E(h))}"/></a:xfrm>${geom}<a:noFill/>${lnXml}</wps:spPr>${body || '<wps:bodyPr/>'}</wps:wsp>`;
+  const shd = `<a:effectLst><a:outerShdw blurRad="${E(lw)}" dist="0" dir="0" algn="ctr" rotWithShape="0"><a:srgbClr val="${col === '000000' ? 'FFFFFF' : '000000'}"><a:alpha val="${col === '000000' ? 70000 : 55000}"/></a:srgbClr></a:outerShdw></a:effectLst>`;
+  const wsp = (x, y, w, h, geom, lnXml, flips, body, fill) => `<wps:wsp><wps:cNvPr id="${id}" name="Forma ${id}"/><wps:cNvSpPr/><wps:spPr><a:xfrm${flips || ''}><a:off x="${E(x)}" y="${E(y)}"/><a:ext cx="${Math.max(1, E(w))}" cy="${Math.max(1, E(h))}"/></a:xfrm>${geom}${fill || '<a:noFill/>'}${lnXml}${body ? '' : shd}</wps:spPr>${body || '<wps:bodyPr/>'}</wps:wsp>`;
   const x = Math.min(sh.x1, sh.x2 ?? sh.x1), y = Math.min(sh.y1, sh.y2 ?? sh.y1), w = Math.abs((sh.x2 ?? sh.x1) - sh.x1), h = Math.abs((sh.y2 ?? sh.y1) - sh.y1);
   const pg = p => `<a:prstGeom prst="${p}"><a:avLst/></a:prstGeom>`;
   if (sh.t === 'rect') return wsp(x, y, w, h, pg('rect'), ln());
   if (sh.t === 'rrect') return wsp(x, y, w, h, `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${Math.round((sh.r ?? 0.22) * 100000)}"/></a:avLst></a:prstGeom>`, ln());
   if (sh.t === 'ellipse') return wsp(x, y, w, h, pg('ellipse'), ln());
-  if (sh.t === 'line' || sh.t === 'arrow') {
+  if (sh.t === 'arrow') {
+    const g = arrowGeom(sh, lw, lw0), pts = g.line.concat(g.head);
+    const x0 = Math.min(...pts.map(q => q[0])), y0 = Math.min(...pts.map(q => q[1])), x1 = Math.max(...pts.map(q => q[0])), y1 = Math.max(...pts.map(q => q[1]));
+    const pw = Math.max(1, E(x1 - x0)), ph = Math.max(1, E(y1 - y0)), P = q => `<a:pt x="${E(q[0] - x0)}" y="${E(q[1] - y0)}"/>`;
+    const geom = `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst>` +
+      `<a:path w="${pw}" h="${ph}" fill="none"><a:moveTo>${P(g.line[0])}</a:moveTo><a:lnTo>${P(g.line[1])}</a:lnTo></a:path>` +
+      `<a:path w="${pw}" h="${ph}" stroke="0"><a:moveTo>${P(g.head[0])}</a:moveTo><a:lnTo>${P(g.head[1])}</a:lnTo><a:lnTo>${P(g.head[2])}</a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>`;
+    return wsp(x0, y0, x1 - x0, y1 - y0, geom, ln(), '', '', `<a:solidFill><a:srgbClr val="${col}"/></a:solidFill>`);
+  }
+  if (sh.t === 'line') {
     const fl = (sh.x2 < sh.x1 ? ' flipH="1"' : '') + (sh.y2 < sh.y1 ? ' flipV="1"' : '');
-    return wsp(x, y, w, h, pg('line'), ln(sh.t === 'arrow' ? '<a:tailEnd type="triangle" w="lg" len="lg"/>' : ''), fl);
+    return wsp(x, y, w, h, pg('line'), ln(), fl);
   }
   if (sh.t === 'free') {
     const xs = sh.p.map(q => q[0]), ys = sh.p.map(q => q[1]), x0 = Math.min(...xs), y0 = Math.min(...ys), pw = Math.max(1, E(Math.max(...xs) - x0)), ph = Math.max(1, E(Math.max(...ys) - y0));
@@ -660,7 +676,7 @@ function annShapeXml(sh, k, W, id){
     const fs = Math.max(14, Math.round(W / 22 * Math.sqrt(sh.w || 1)));
     const hp = Math.max(8, Math.round(E(fs) / 12700 * 2 * 1.05));
     const tw = fs * 0.62 * String(sh.s).length + fs * 0.4;
-    const body = `<wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:b/><w:color w:val="${col}"/><w:sz w:val="${hp}"/><w:szCs w:val="${hp}"/></w:rPr><w:t xml:space="preserve">${xesc(sh.s)}</w:t></w:r></w:p></w:txbxContent></wps:txbx><wps:bodyPr rot="0" vert="horz" wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr"><a:spAutoFit/></wps:bodyPr>`;
+    const body = `<wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:color w:val="${col}"/><w:sz w:val="${hp}"/><w:szCs w:val="${hp}"/><w14:textOutline w14:w="${E(Math.max(3, fs / 7)) / 2 | 0}" w14:cap="rnd" w14:cmpd="sng" w14:algn="ctr"><w14:solidFill><w14:srgbClr w14:val="${col === '000000' || col === '1C71D8' ? 'FFFFFF' : '000000'}"/></w14:solidFill><w14:prstDash w14:val="solid"/><w14:round/></w14:textOutline></w:rPr><w:t xml:space="preserve">${xesc(sh.s)}</w:t></w:r></w:p></w:txbxContent></wps:txbx><wps:bodyPr rot="0" vert="horz" wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr"><a:spAutoFit/></wps:bodyPr>`;
     return wsp(sh.x1, sh.y1 - fs * 0.75, tw, fs * 1.5, pg('rect'), '<a:ln><a:noFill/></a:ln>', '', body);
   }
   return '';
@@ -1453,7 +1469,7 @@ function annDraw(prev){
   shapes.concat(prev ? [prev] : []).forEach(s => {
     const lw = Math.max(2, lw0 * (s.w || 1));
     ctx.save(); ctx.strokeStyle = ctx.fillStyle = s.c; ctx.lineWidth = lw;
-    if (s.d === 'dash') ctx.setLineDash([lw * 3, lw * 2]); else if (s.d === 'dot') ctx.setLineDash([0.1, lw * 2]); ctx.lineCap = ctx.lineJoin = 'round';
+    if (s.d === 'dash') ctx.setLineDash([lw * 4, lw * 3]); else if (s.d === 'dot') ctx.setLineDash([lw, lw * 3]); ctx.lineCap = ctx.lineJoin = 'round';
     ctx.shadowColor = s.c === '#000000' ? 'rgba(255,255,255,.7)' : 'rgba(0,0,0,.55)'; ctx.shadowBlur = lw;
     if (s.t === 'rect') ctx.strokeRect(Math.min(s.x1, s.x2), Math.min(s.y1, s.y2), Math.abs(s.x2 - s.x1), Math.abs(s.y2 - s.y1));
     else if (s.t === 'ellipse') { ctx.beginPath(); ctx.ellipse((s.x1 + s.x2) / 2, (s.y1 + s.y2) / 2, Math.abs(s.x2 - s.x1) / 2 || 1, Math.abs(s.y2 - s.y1) / 2 || 1, 0, 0, Math.PI * 2); ctx.stroke(); }
@@ -1462,9 +1478,9 @@ function annDraw(prev){
     else if (s.t === 'line') { ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); ctx.stroke(); }
     else if (s.t === 'free') { const pts = s.p || []; if (pts.length) { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); pts.forEach(q => ctx.lineTo(q[0], q[1])); ctx.stroke(); } }
     else if (s.t === 'arrow') {
-      const a = Math.atan2(s.y2 - s.y1, s.x2 - s.x1), hl = Math.max(lw * 4.5, lw0 * 3);
-      ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2 - Math.cos(a) * hl * 0.6, s.y2 - Math.sin(a) * hl * 0.6); ctx.stroke();
-      ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(s.x2, s.y2); ctx.lineTo(s.x2 - hl * Math.cos(a - 0.45), s.y2 - hl * Math.sin(a - 0.45)); ctx.lineTo(s.x2 - hl * Math.cos(a + 0.45), s.y2 - hl * Math.sin(a + 0.45)); ctx.closePath(); ctx.fill();
+      const g = arrowGeom(s, lw, lw0);
+      ctx.beginPath(); ctx.moveTo(g.line[0][0], g.line[0][1]); ctx.lineTo(g.line[1][0], g.line[1][1]); ctx.stroke();
+      ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(g.head[0][0], g.head[0][1]); ctx.lineTo(g.head[1][0], g.head[1][1]); ctx.lineTo(g.head[2][0], g.head[2][1]); ctx.closePath(); ctx.fill();
     } else if (s.t === 'text') {
       const fs = Math.max(14, Math.round(cv.width / 22 * Math.sqrt(s.w || 1))); ctx.font = `bold ${fs}px sans-serif`; ctx.textBaseline = 'middle';
       ctx.shadowBlur = 0; ctx.lineWidth = Math.max(3, fs / 7); ctx.strokeStyle = s.c === '#000000' || s.c === '#1c71d8' ? '#fff' : '#000';
