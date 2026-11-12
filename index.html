@@ -419,7 +419,7 @@ details.secd[open] > summary{margin-bottom:4px}
 </div>
 
   <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
-  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 15:00</span></p>
+  <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-12 15:10</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
 <script>
@@ -622,7 +622,7 @@ function cleanClone(el){
   return c;
 }
 function frag(doc, Parser, xml){
-  const d = new Parser().parseFromString(`<root xmlns:w="${NS.w}" xmlns:wp="${NS.wp}" xmlns:a="${NS.a}" xmlns:pic="${NS.pic}" xmlns:r="${NS.r}" xmlns:wpg="${NS.wpg}" xmlns:wps="${NS.wps}" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">${xml}</root>`, 'application/xml');
+  const d = new Parser().parseFromString(`<root xmlns:w="${NS.w}" xmlns:wp="${NS.wp}" xmlns:a="${NS.a}" xmlns:pic="${NS.pic}" xmlns:r="${NS.r}" xmlns:wpg="${NS.wpg}" xmlns:wps="${NS.wps}" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">${xml}</root>`, 'application/xml');
   const out = []; for (let n = d.documentElement.firstChild; n; n = n.nextSibling) if (n.nodeType === 1) out.push(doc.importNode(n, true));
   return out;
 }
@@ -649,7 +649,7 @@ function annShapeXml(sh, k, W, id){
   const ln = (extra) => `<a:ln w="${E(lw)}" cap="rnd"><a:solidFill><a:srgbClr val="${col}"/></a:solidFill>${dash}<a:round/>${extra || ''}</a:ln>`;
   const shd = `<a:effectLst><a:outerShdw blurRad="${E(lw)}" dist="0" dir="0" algn="ctr" rotWithShape="0"><a:srgbClr val="${col === '000000' ? 'FFFFFF' : '000000'}"><a:alpha val="${col === '000000' ? 70000 : 55000}"/></a:srgbClr></a:outerShdw></a:effectLst>`;
   // forma flotante anclada junto a la foto (Word la deja seleccionar y editar, también en el celular)
-  const wsp = (x, y, w, h, geom, lnXml, flips, body, fill) => `<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="${251660000 + id}" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="character"><wp:posOffset>${E(x)}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="line"><wp:posOffset>${E(y)}</wp:posOffset></wp:positionV><wp:extent cx="${Math.max(1, E(w))}" cy="${Math.max(1, E(h))}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="Forma ${id}"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri="${NS.wps}"><wps:wsp><wps:cNvSpPr/><wps:spPr><a:xfrm${flips || ''}><a:off x="0" y="0"/><a:ext cx="${Math.max(1, E(w))}" cy="${Math.max(1, E(h))}"/></a:xfrm>${geom}${fill || '<a:noFill/>'}${lnXml}${body ? '' : shd}</wps:spPr>${body || '<wps:bodyPr/>'}</wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>`;
+  const wsp = (x, y, w, h, geom, lnXml, flips, body, fill) => `<w:r><mc:AlternateContent><mc:Choice Requires="wps"><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="${251660000 + id}" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="character"><wp:posOffset>${E(x)}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="line"><wp:posOffset>${E(y)}</wp:posOffset></wp:positionV><wp:extent cx="${Math.max(1, E(w))}" cy="${Math.max(1, E(h))}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="Forma ${id}"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri="${NS.wps}"><wps:wsp><wps:cNvSpPr/><wps:spPr><a:xfrm${flips || ''}><a:off x="0" y="0"/><a:ext cx="${Math.max(1, E(w))}" cy="${Math.max(1, E(h))}"/></a:xfrm>${geom}${fill || '<a:noFill/>'}${lnXml}${body ? '' : shd}</wps:spPr>${body || '<wps:bodyPr/>'}</wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></mc:Choice></mc:AlternateContent></w:r>`;
   const x = Math.min(sh.x1, sh.x2 ?? sh.x1), y = Math.min(sh.y1, sh.y2 ?? sh.y1), w = Math.abs((sh.x2 ?? sh.x1) - sh.x1), h = Math.abs((sh.y2 ?? sh.y1) - sh.y1);
   const pg = p => `<a:prstGeom prst="${p}"><a:avLst/></a:prstGeom>`;
   if (sh.t === 'rect') return wsp(x, y, w, h, pg('rect'), ln());
@@ -686,6 +686,11 @@ function annShapeXml(sh, k, W, id){
 async function buildEditor(zip, draft, Parser, Serializer){
   const docName = 'word/document.xml', relName = 'word/_rels/document.xml.rels';
   const doc = new Parser().parseFromString(await zip.file(docName).async('string'), 'application/xml');
+  { // declarar en la raíz los espacios de nombres de formas de Word (como hace Word)
+    const R = doc.documentElement, X = 'http://www.w3.org/2000/xmlns/';
+    [['wps', NS.wps], ['wpg', NS.wpg], ['mc', 'http://schemas.openxmlformats.org/markup-compatibility/2006'], ['w14', 'http://schemas.microsoft.com/office/word/2010/wordml'], ['a', NS.a], ['pic', NS.pic]]
+      .forEach(([k, v]) => { if (!R.getAttribute('xmlns:' + k)) R.setAttributeNS(X, 'xmlns:' + k, v); });
+  }
   const body = doc.getElementsByTagName('w:body')[0];
   let rels = await zip.file(relName).async('string');
   let imgN = 0, docPr = 90000, nFotos = 0;
