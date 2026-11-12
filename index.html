@@ -92,9 +92,9 @@ textarea{width:100%;min-height:80px;padding:10px 12px;border:1px solid var(--lin
 .chk .ok{color:var(--ok)}.chk .pend{color:var(--warn)}
 .chk small{color:var(--mut);display:block}
 .saved{font-size:12px;color:var(--mut);text-align:right;margin:-4px 0 8px}
-.micw{display:none;justify-content:flex-end;align-items:center;gap:8px;margin:-40px 6px 8px 0;position:relative;pointer-events:none}
-.micw > *{pointer-events:auto}
-body.has-dict #tab-editor textarea{padding-bottom:40px}
+.micw{display:none;justify-content:flex-end;align-items:center;gap:8px;margin:3px 0 0}
+.mic.micI{width:30px;height:30px;padding:0;justify-content:center;flex-shrink:0}
+.mic.micI svg{width:16px;height:16px}
 body.has-dict .micw{display:flex}
 .mic{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;font-size:12px;border-radius:999px;color:var(--acc);border-color:var(--acc);background:#fff}
 .mic.on{background:var(--err);border-color:var(--err);color:#fff}
@@ -155,7 +155,6 @@ body.noscroll{overflow:hidden}
 .tblx th input{font-weight:600;background:#eef2f7}
 .tblx .tacts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .ocrst{font-size:13px;color:var(--acc);margin-top:8px}
-.partial{pointer-events:none!important;background:rgba(255,255,255,.85)}
 label{margin:8px 0 3px}
 input[type=text],input[type=date],select{padding:9px 10px}
 textarea{min-height:64px;padding:9px 10px}
@@ -163,6 +162,10 @@ textarea{min-height:64px;padding:9px 10px}
 .genbar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:rgba(243,245,248,.96);border-top:1px solid var(--line);padding:8px 10px calc(8px + env(safe-area-inset-bottom))}
 .genbar .in{max-width:720px;margin:0 auto}
 .genbar button.pri{padding:12px;font-size:15px}
+.genrow{display:flex;gap:8px}
+.genrow .pri{flex:1}
+.genbar button.sav{padding:12px 16px;font-size:15px;font-weight:600;color:var(--acc);border-color:var(--acc);background:#fff;flex-shrink:0}
+.genbar button.sav.ok{background:var(--ok);border-color:var(--ok);color:#fff}
 .genbar .msg{margin:0 0 6px;max-height:30vh;overflow:auto}
 details.secd{border-left:3px solid var(--acc)}
 details.secd > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-weight:600;font-size:14px}
@@ -352,7 +355,7 @@ details.secd[open] > summary{margin-bottom:4px}
   </section>
 </div>
 
-  <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><button class="pri" id="gen" disabled>Generar informe</button></div></div>
+  <div class="genbar"><div class="in"><div class="msg" id="genMsg"></div><div class="genrow"><button class="sav" id="saveBtn" type="button">Guardar</button><button class="pri" id="gen" disabled>Generar informe</button></div></div></div>
   <p class="lock" style="margin-bottom:0">Versión <span id="appVer">2026-11-11 21:00</span></p>
   <p class="lock">🔒 Todo se procesa en tu dispositivo. La plantilla y los datos no se envían a ningún servidor.</p>
 </main>
@@ -953,7 +956,8 @@ document.addEventListener('click', async e => {
   const r = await shareFile(shareBuf.name, shareBuf.data, shareBuf.mime);
   if (r === 'nosoporta') $('genMsg').insertAdjacentHTML('beforeend', '<br>Este navegador no permite enviar este archivo a Drive. Súbelo desde la app de Drive: <b>+ → Subir</b>.');
 });
-function msg(id, cls, html){ const m = $(id); m.className = 'msg ' + (cls || ''); m.innerHTML = html || ''; }
+let msgT = {};
+function msg(id, cls, html){ const m = $(id); m.className = 'msg ' + (cls || ''); m.innerHTML = html || ''; clearTimeout(msgT[id]); if (id === 'genMsg' && cls === 'ok' && html && !/<a |<button/i.test(html)) msgT[id] = setTimeout(() => { m.className = 'msg'; m.innerHTML = ''; }, 6000); }
 
 async function loadFile(f){
   const ext = f.name.split('.').pop().toLowerCase();
@@ -1022,6 +1026,13 @@ async function save(filename, data){
   }
 }
 
+$('saveBtn').onclick = async () => {
+  const b = $('saveBtn'); clearTimeout(saveT); b.disabled = true; b.textContent = 'Guardando…';
+  const ok = await saveCurrent();
+  $('savedTxt').textContent = ok ? 'Borrador guardado en este dispositivo' : 'No se pudo guardar el borrador en este navegador';
+  b.disabled = false; b.textContent = ok ? '✓ Guardado' : 'Error'; b.classList.toggle('ok', !!ok);
+  setTimeout(() => { b.textContent = 'Guardar'; b.classList.remove('ok'); }, 1800);
+};
 $('gen').onclick = async () => {
   if (!tpl) return;
   const v = collect();
@@ -1157,14 +1168,14 @@ const MIC_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 
 function addMics(){
   $('tab-editor').querySelectorAll('textarea').forEach(ta => {
     if (ta.nextElementSibling && ta.nextElementSibling.classList.contains('micw')) return;
-    ta.insertAdjacentHTML('afterend', `<div class="micw"><span class="partial"></span><button type="button" class="sm mic">${MIC_SVG}Dictar</button></div>`);
+    ta.insertAdjacentHTML('afterend', `<div class="micw"><span class="partial"></span><button type="button" class="sm mic micI" title="Dictar" aria-label="Dictar">${MIC_SVG}</button></div>`);
   });
   if (dictTarget && !dictTarget.isConnected) stopDict();
 }
 function setMicUI(on){
-  document.querySelectorAll('.mic').forEach(b => { b.classList.remove('on'); b.innerHTML = MIC_SVG + (b.dataset.lbl || 'Dictar'); });
+  document.querySelectorAll('.mic').forEach(b => { b.classList.remove('on'); b.innerHTML = MIC_SVG + (b.classList.contains('micI') ? '' : (b.dataset.lbl || 'Dictar')); });
   document.querySelectorAll('.partial').forEach(p => p.textContent = '');
-  if (on && dictBtn && dictBtn.isConnected) { dictBtn.classList.add('on'); dictBtn.innerHTML = MIC_SVG + 'Detener'; }
+  if (on && dictBtn && dictBtn.isConnected) { dictBtn.classList.add('on'); dictBtn.innerHTML = MIC_SVG + (dictBtn.classList.contains('micI') ? '' : 'Detener'); }
 }
 function stopDict(){ if (dict) dict.stop().catch(() => {}); }
 function applySpoken(ta, text){
@@ -1181,7 +1192,7 @@ document.addEventListener('click', e => {
   if (dict.active() && dictTarget && (dictTarget === ta || (ta.key && dictTarget.key === ta.key))) { stopDict(); return; }
   if (dict.active()) stopDict();
   dictTarget = ta; dictBtn = b;
-  b.classList.add('on'); b.innerHTML = MIC_SVG + 'Activando…';
+  b.classList.add('on'); b.innerHTML = MIC_SVG + (b.classList.contains('micI') ? '' : 'Activando…');
   dict.start({ language: 'es' }).catch(err => {
     setMicUI(false);
     const c = err && err.code;
